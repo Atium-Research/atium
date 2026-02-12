@@ -4,116 +4,140 @@ import numpy as np
 import polars as pl
 
 
-def equal_weight(tickers: list[str], date: str | None = None) -> dict[str, float]:
-    """Generate equal weights for all tickers."""
-    n = len(tickers)
-    weight = 1.0 / n if n > 0 else 0.0
-    return {ticker: weight for ticker in tickers}
-
-
-def mean_variance(
-    returns: pl.DataFrame,
-    target_return: float | None = None,
-    risk_aversion: float = 1.0,
-) -> dict[str, float]:
+def build_factor_covariance(
+    factor_loadings: pl.DataFrame,
+    factor_covariances: pl.DataFrame,
+    idio_vol: pl.DataFrame,
+    date = None,
+) -> tuple[np.ndarray, list[str]]:
     """
-    Mean-variance optimization.
+    Build covariance matrix using factor model: Σ = B * F * B' + D
     
     Args:
-        returns: DataFrame with columns [ticker, date, return]
-        target_return: Target portfolio return (optional)
-        risk_aversion: Risk aversion parameter (higher = more conservative)
+        factor_loadings: DataFrame with [ticker, (date,) factor, loading]
+        factor_covariances: DataFrame with [(date,) factor_1, factor_2, covariance]
+        idio_vol: DataFrame with [ticker, (date,) idio_vol]
+        date: Optional date to filter to (if data has date column)
     
     Returns:
-        Dictionary of ticker -> weight
+        - covariance matrix (n_assets x n_assets)
+        - list of tickers in order
     """
-    # Pivot to wide format
-    wide = returns.pivot(on="ticker", index="date", values="return").drop("date")
-    tickers = wide.columns
+    # Filter to specific date if provided and date column exists
+    if date is not None:
+        if "date" in factor_loadings.columns:
+            factor_loadings = factor_loadings.filter(pl.col("date") == date)
+        if "date" in factor_covariances.columns:
+            factor_covariances = factor_covariances.filter(pl.col("date") == date)
+        if "date" in idio_vol.columns:
+            idio_vol = idio_vol.filter(pl.col("date") == date)
     
-    # Calculate expected returns and covariance
-    returns_matrix = wide.to_numpy()
+    # Get tickers that have both loadings and idio vol
+    tickers_with_loadings = set(factor_loadings["ticker"].unique().to_list())
+    tickers_with_idio = set(idio_vol["ticker"].unique().to_list())
+    tickers = sorted(tickers_with_loadings & tickers_with_idio)
     
-    # Drop any columns with NaN
-    valid_mask = ~np.any(np.isnan(returns_matrix), axis=0)
-    returns_matrix = returns_matrix[:, valid_mask]
-    tickers = [t for t, v in zip(tickers, valid_mask) if v]
+    if not tickers:
+        return np.array([[]]), []
     
-    if len(tickers) == 0:
+    # Filter to common tickers
+    factor_loadings = factor_loadings.filter(pl.col("ticker").is_in(tickers))
+    idio_vol = idio_vol.filter(pl.col("ticker").is_in(tickers))
+    
+    # Get factors
+    factors = sorted(factor_loadings["factor"].unique().to_list())
+    n_assets = len(tickers)
+    n_factors = len(factors)
+    
+    # Build B matrix (n_assets x n_factors)
+    B = np.zeros((n_assets, n_factors))
+    loadings_pivot = factor_loadings.pivot(on="factor", index="ticker", values="loading").sort("ticker")
+    for i, factor in enumerate(factors):
+        if factor in loadings_pivot.columns:
+            B[:, i] = loadings_pivot[factor].fill_null(0).to_numpy()
+    
+    # Build F matrix (n_factors x n_factors)
+    F = np.zeros((n_factors, n_factors))
+    for row in factor_covariances.iter_rows(named=True):
+        f1, f2, cov = row["factor_1"], row["factor_2"], row["covariance"]
+        if f1 in factors and f2 in factors:
+            i, j = factors.index(f1), factors.index(f2)
+            F[i, j] = cov
+            F[j, i] = cov  # Symmetric
+    
+    # Build D matrix (diagonal idiosyncratic variance)
+    idio_sorted = idio_vol.sort("ticker")
+    idio_var = idio_sorted["idio_vol"].fill_null(0.02).to_numpy() ** 2  # vol -> variance
+    D = np.diag(idio_var)
+    
+    # Σ = B * F * B' + D
+    cov_matrix = B @ F @ B.T + D
+    
+    # Regularize
+    cov_matrix = cov_matrix + np.eye(n_assets) * 1e-6
+    
+    return cov_matrix, tickers
+
+
+def mean_variance_optimize(
+    expected_returns: dict[str, float],
+    cov_matrix: np.ndarray,
+    tickers: list[str],
+    risk_aversion: float = 1.0,
+    long_only: bool = True,
+) -> dict[str, float]:
+    """
+    Mean-variance optimization: max w'μ - (λ/2) w'Σw
+    
+    For long-only, we use a simple iterative approach.
+    """
+    n = len(tickers)
+    if n == 0:
         return {}
     
-    mu = np.mean(returns_matrix, axis=0)
-    cov = np.cov(returns_matrix.T)
+    # Build expected returns vector
+    mu = np.array([expected_returns.get(t, 0) for t in tickers])
     
-    # Regularize covariance matrix
-    cov = cov + np.eye(len(tickers)) * 1e-6
-    
-    # Simple mean-variance: w = (1/lambda) * Sigma^-1 * mu
+    # Unconstrained solution: w = (1/λ) * Σ^-1 * μ
     try:
-        cov_inv = np.linalg.inv(cov)
+        cov_inv = np.linalg.inv(cov_matrix)
         weights = (1.0 / risk_aversion) * cov_inv @ mu
     except np.linalg.LinAlgError:
-        # Fallback to equal weight
-        weights = np.ones(len(tickers)) / len(tickers)
+        weights = np.ones(n) / n
     
-    # Normalize to sum to 1 (long-only)
-    weights = np.maximum(weights, 0)  # No shorts
-    total = np.sum(weights)
+    if long_only:
+        # Simple approach: zero out negative weights, renormalize
+        weights = np.maximum(weights, 0)
+    
+    # Normalize to sum to 1
+    total = np.sum(np.abs(weights))
     if total > 0:
         weights = weights / total
     else:
-        weights = np.ones(len(tickers)) / len(tickers)
+        weights = np.ones(n) / n
     
     return dict(zip(tickers, weights))
 
 
-def generate_weights_series(
-    returns: pl.DataFrame,
-    method: str = "equal",
-    lookback: int = 60,
-    rebalance_freq: int = 1,
-    **kwargs,
-) -> pl.DataFrame:
+def signal_to_expected_returns(
+    signals: pl.DataFrame,
+    date: str,
+    scale: float = 1.0,
+) -> dict[str, float]:
     """
-    Generate weight series over time.
+    Convert signals to expected returns.
     
     Args:
-        returns: DataFrame with columns [ticker, date, return]
-        method: "equal" or "mean_variance"
-        lookback: Number of days to use for optimization
-        rebalance_freq: Rebalance every N days
-    
-    Returns:
-        DataFrame with columns [ticker, date, weight]
+        signals: DataFrame with [ticker, date, value]
+        date: Date to get signals for
+        scale: Scaling factor for signals
     """
-    dates = sorted(returns["date"].unique().to_list())
-    all_weights = []
+    if isinstance(date, str):
+        from datetime import datetime
+        date = datetime.strptime(date, "%Y-%m-%d").date()
     
-    for i, date in enumerate(dates):
-        # Skip if not rebalance day
-        if i % rebalance_freq != 0:
-            continue
-        
-        # Get lookback window
-        lookback_dates = dates[max(0, i - lookback):i]
-        if len(lookback_dates) < 20:  # Need minimum history
-            continue
-        
-        window_returns = returns.filter(pl.col("date").is_in(lookback_dates))
-        tickers = window_returns["ticker"].unique().to_list()
-        
-        if method == "equal":
-            weights = equal_weight(tickers)
-        elif method == "mean_variance":
-            weights = mean_variance(window_returns, **kwargs)
-        else:
-            raise ValueError(f"Unknown method: {method}")
-        
-        for ticker, weight in weights.items():
-            all_weights.append({
-                "date": date,
-                "ticker": ticker,
-                "weight": weight,
-            })
-    
-    return pl.DataFrame(all_weights)
+    day_signals = signals.filter(pl.col("date") == date)
+    return {
+        row["ticker"]: row["value"] * scale
+        for row in day_signals.iter_rows(named=True)
+    }

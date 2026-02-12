@@ -31,22 +31,15 @@ def load_prices(
     end_date: str,
     tickers: list[str] | None = None,
 ) -> pl.DataFrame:
-    """
-    Load stock prices from Bear Lake.
-    
-    Returns DataFrame with columns: ticker, date, open, high, low, close, volume
-    """
+    """Load stock prices from Bear Lake."""
     query = (
         bl.table("stock_prices")
         .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
         .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
     )
-    
     df = client.query(query)
-    
     if tickers:
         df = df.filter(pl.col("ticker").is_in(tickers))
-    
     return df.select(["ticker", "date", "open", "high", "low", "close", "volume"]).sort("date", "ticker")
 
 
@@ -56,29 +49,19 @@ def load_returns(
     end_date: str,
     tickers: list[str] | None = None,
 ) -> pl.DataFrame:
-    """
-    Load stock returns from Bear Lake.
-    
-    Returns DataFrame with columns: ticker, date, return
-    """
+    """Load stock returns from Bear Lake."""
     query = (
         bl.table("stock_returns")
         .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
         .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
     )
-    
     df = client.query(query)
-    
     if tickers:
         df = df.filter(pl.col("ticker").is_in(tickers))
-    
     return df.select(["ticker", "date", "return"]).sort("date", "ticker")
 
 
-def load_universe(
-    client: bl.Database,
-    date: str,
-) -> list[str]:
+def load_universe(client: bl.Database, date: str) -> list[str]:
     """Load universe tickers for a specific date."""
     df = client.query(
         bl.table("universe").filter(pl.col("date") == pl.lit(date).str.to_date())
@@ -86,16 +69,59 @@ def load_universe(
     return df["ticker"].to_list()
 
 
-def returns_to_matrix(returns: pl.DataFrame) -> tuple[pl.DataFrame, list[str], list]:
-    """
-    Convert long-format returns to wide matrix.
-    
-    Returns:
-        - matrix: DataFrame with dates as rows, tickers as columns
-        - tickers: list of ticker names (column order)
-        - dates: list of dates (row order)
-    """
-    wide = returns.pivot(on="ticker", index="date", values="return").sort("date")
-    tickers = [c for c in wide.columns if c != "date"]
-    dates = wide["date"].to_list()
-    return wide, tickers, dates
+def load_signals(
+    client: bl.Database,
+    start_date: str,
+    end_date: str,
+    signal_name: str = "reversal",
+) -> pl.DataFrame:
+    """Load signals from Bear Lake."""
+    df = client.query(
+        bl.table("signals")
+        .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
+        .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
+        .filter(pl.col("signal") == signal_name)
+    )
+    return df.select(["ticker", "date", "value"]).sort("date", "ticker")
+
+
+def load_factor_loadings(
+    client: bl.Database,
+    start_date: str,
+    end_date: str,
+) -> pl.DataFrame:
+    """Load factor loadings for date range."""
+    df = client.query(
+        bl.table("factor_loadings")
+        .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
+        .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
+    )
+    return df.select(["ticker", "date", "factor", "loading"]).sort("date", "ticker", "factor")
+
+
+def load_factor_covariances(
+    client: bl.Database,
+    start_date: str,
+    end_date: str,
+) -> pl.DataFrame:
+    """Load factor covariance matrices for date range."""
+    df = client.query(
+        bl.table("factor_covariances")
+        .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
+        .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
+    )
+    return df.select(["date", "factor_1", "factor_2", "covariance"]).sort("date")
+
+
+def load_idio_vol(
+    client: bl.Database,
+    start_date: str,
+    end_date: str,
+) -> pl.DataFrame:
+    """Load idiosyncratic volatility for date range."""
+    df = client.query(
+        bl.table("idio_vol")
+        .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
+        .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
+    )
+    return df.select(["ticker", "date", "idio_vol"]).sort("date", "ticker")
