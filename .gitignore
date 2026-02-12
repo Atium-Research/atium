@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.local
 *.egg-info/
 dist/
 build/
@@ -12,3 +13,4 @@ build/
 .ruff_cache/
 .coverage
 *.log
+uv.lock
