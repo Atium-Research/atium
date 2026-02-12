@@ -125,3 +125,17 @@ def load_idio_vol(
         .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
     )
     return df.select(["ticker", "date", "idio_vol"]).sort("date", "ticker")
+
+
+def load_benchmark_weights(
+    client: bl.Database,
+    start_date: str,
+    end_date: str,
+) -> pl.DataFrame:
+    """Load benchmark weights for date range."""
+    df = client.query(
+        bl.table("benchmark_weights")
+        .filter(pl.col("date") >= pl.lit(start_date).str.to_date())
+        .filter(pl.col("date") <= pl.lit(end_date).str.to_date())
+    )
+    return df.select(["ticker", "date", "weight"]).sort("date", "ticker")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Harbinger Demo — MVO backtest with reversal signal and factor model covariance.
+Harbinger Demo — MVO with 5% active risk target.
 
 Usage:
     uv run python demo.py
@@ -20,21 +20,22 @@ from harbinger.data import (
     load_factor_loadings,
     load_factor_covariances,
     load_idio_vol,
+    load_benchmark_weights,
 )
 from harbinger.optimize import (
     build_factor_covariance,
-    mean_variance_optimize,
+    mean_variance_with_risk_target,
     signal_to_expected_returns,
 )
 from harbinger.backtest import Backtest, Constraints
 
 
 def main():
-    print("🔮 Harbinger Demo — Reversal + Factor Model MVO\n")
+    print("🔮 Harbinger Demo — 5% Active Risk Target\n")
     print("=" * 60)
 
     # ========================================
-    # 1. Load ALL data upfront (batch)
+    # 1. Load ALL data upfront
     # ========================================
     print("\n📊 Loading data from Bear Lake...")
 
@@ -43,7 +44,6 @@ def main():
     start_date = "2025-06-01"
     end_date = "2026-01-31"
 
-    # Load all data in batch
     prices = load_prices(client, start_date, end_date)
     print(f"   Prices: {prices.shape}")
 
@@ -59,25 +59,30 @@ def main():
     idio_vol = load_idio_vol(client, start_date, end_date)
     print(f"   Idio vol: {idio_vol.shape}")
 
-    # Get trading dates (dates with all required data)
+    benchmark_weights = load_benchmark_weights(client, start_date, end_date)
+    print(f"   Benchmark weights: {benchmark_weights.shape}")
+
+    # Get trading dates
     signal_dates = set(signals["date"].unique().to_list())
     factor_dates = set(factor_loadings["date"].unique().to_list())
     idio_dates = set(idio_vol["date"].unique().to_list())
-    trading_dates = sorted(signal_dates & factor_dates & idio_dates)
+    bench_dates = set(benchmark_weights["date"].unique().to_list())
+    trading_dates = sorted(signal_dates & factor_dates & idio_dates & bench_dates)
     print(f"   Trading dates: {len(trading_dates)}")
 
     # ========================================
-    # 2. Generate daily weights using MVO
+    # 2. Generate daily weights with 5% risk target
     # ========================================
-    print("\n⚖️  Running daily MVO with factor model covariance...")
+    print("\n⚖️  Running daily MVO with 5% active risk target...")
 
     all_weights = []
+    all_metrics = []
 
     for i, date in enumerate(trading_dates):
         if i % 20 == 0:
             print(f"   Processing date {i+1}/{len(trading_dates)}: {date}")
 
-        # Build covariance matrix for this date
+        # Build covariance matrix
         cov_matrix, tickers = build_factor_covariance(
             factor_loadings, factor_covariances, idio_vol, date=date
         )
@@ -85,19 +90,28 @@ def main():
         if len(tickers) == 0:
             continue
 
-        # Get expected returns from reversal signal
+        # Get expected returns
         expected_returns = signal_to_expected_returns(signals, date, scale=1.0)
         expected_returns = {k: v for k, v in expected_returns.items() if k in tickers}
 
         if not expected_returns:
             continue
 
-        # Run MVO (long only)
-        weights = mean_variance_optimize(
+        # Get benchmark weights for this date
+        bench_df = benchmark_weights.filter(pl.col("date") == date)
+        bench_dict = {
+            row["ticker"]: row["weight"]
+            for row in bench_df.iter_rows(named=True)
+            if row["ticker"] in tickers
+        }
+
+        # Run MVO with 5% active risk target
+        weights, final_lambda, achieved_risk = mean_variance_with_risk_target(
             expected_returns=expected_returns,
             cov_matrix=cov_matrix,
             tickers=tickers,
-            risk_aversion=1.0,
+            benchmark_weights=bench_dict,
+            target_active_risk=0.05,
             long_only=True,
         )
 
@@ -109,16 +123,21 @@ def main():
                     "weight": weight,
                 })
 
+        all_metrics.append({
+            "date": date,
+            "lambda": final_lambda,
+            "active_risk": achieved_risk,
+        })
+
     weights_df = pl.DataFrame(all_weights)
+    metrics_df = pl.DataFrame(all_metrics)
+
     print(f"\n   Generated weights: {weights_df.shape}")
 
-    # Show sample
-    if not weights_df.is_empty():
-        sample_date = weights_df["date"].unique().sort()[0]
-        sample = weights_df.filter(pl.col("date") == sample_date).sort("weight", descending=True).head(10)
-        print(f"\n   Sample weights ({sample_date}):")
-        for row in sample.iter_rows(named=True):
-            print(f"      {row['ticker']:>6}: {row['weight']*100:>6.2f}%")
+    # Show risk targeting results
+    avg_risk = metrics_df["active_risk"].mean()
+    print(f"   Average active risk: {avg_risk*100:.2f}% (target: 5.00%)")
+    print(f"   Risk range: [{metrics_df['active_risk'].min()*100:.2f}%, {metrics_df['active_risk'].max()*100:.2f}%]")
 
     # ========================================
     # 3. Run backtest
@@ -126,11 +145,11 @@ def main():
     print("\n🚀 Running backtest...")
 
     constraints = Constraints(
-        min_position_value=1.0,      # Min $1 per position
-        min_trade_value=1.0,         # Min $1 per trade
-        max_position_pct=0.10,       # Max 10% per position
-        max_turnover=1.0,            # Allow full rebalance daily
-        allow_short=False,           # Long only
+        min_position_value=1.0,
+        min_trade_value=1.0,
+        max_position_pct=0.10,
+        max_turnover=1.0,
+        allow_short=False,
     )
 
     bt = Backtest(
