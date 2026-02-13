@@ -314,15 +314,11 @@ def backtest(
     if config is None:
         config = BacktestConfig()
     
-    # LAG SIGNALS INTERNALLY
-    # Signal from day T is used to trade on day T+1
-    # This avoids look-ahead bias since signal_T uses data from day T
-    signals_lagged = signals.sort(["ticker", "date"]).with_columns([
-        pl.col("date").shift(-1).over("ticker").alias("trade_date")
-    ]).drop("date").rename({"trade_date": "date"}).drop_nulls()
+    # NO LAGGING - use signals as-is, forward shift returns instead
+    # Signal_T forms portfolio at close of T, captures return from T to T+1
     
-    # Get common dates across all data (using lagged signal dates)
-    signal_dates = set(signals_lagged["date"].unique().to_list())
+    # Get common dates across all data
+    signal_dates = set(signals["date"].unique().to_list())
     return_dates = set(returns["date"].unique().to_list())
     factor_dates = set(factor_loadings["date"].unique().to_list())
     idio_dates = set(idio_vol["date"].unique().to_list())
@@ -336,9 +332,8 @@ def backtest(
     if len(common_dates) < 2:
         raise ValueError("Not enough common dates for backtest")
     
-    # Forward returns: we need return from T to T+1 for portfolio held at close of T
-    # Since signals are lagged (signal computed at T is used at T+1),
-    # we need forward return from T+1 = return realized from T+1 to T+2
+    # Forward returns: signal_T forms portfolio at close of T
+    # Captures return from close_T to close_T+1 = forward_return at T
     returns_sorted = returns.sort(["ticker", "date"])
     forward_returns = returns_sorted.with_columns([
         pl.col("return").shift(-1).over("ticker").alias("forward_return")
@@ -352,9 +347,9 @@ def backtest(
     all_weights = []
     all_trades = []
     
-    for i, date in enumerate(common_dates[:-1]):  # Exclude last date
-        # Get data for this date (using lagged signals)
-        day_signals = signals_lagged.filter(pl.col("date") == date)
+    for i, date in enumerate(common_dates[:-1]):  # Exclude last date (no forward return)
+        # Get data for this date
+        day_signals = signals.filter(pl.col("date") == date)
         day_prices = prices.filter(pl.col("date") == date)
         day_bench = benchmark_weights.filter(pl.col("date") == date)
         day_forward = forward_returns.filter(pl.col("date") == date)
@@ -430,8 +425,8 @@ def backtest(
             })
         
         # Calculate portfolio return using forward returns
-        # Signal_T (lagged to T+1) forms portfolio at close of T+1
-        # Captures return from T+1 to T+2 = forward_return at T+1
+        # Signal_T forms portfolio at close of T
+        # Captures return from T to T+1 = forward_return at T
         forward_dict = {
             row["ticker"]: row["forward_return"]
             for row in day_forward.iter_rows(named=True)
