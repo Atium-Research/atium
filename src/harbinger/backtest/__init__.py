@@ -5,18 +5,14 @@ Single entry point for running backtests with MVO and trading constraints.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
 
 from harbinger.constraints import (
     Constraint,
-    OptimizerConstraint,
-    TradingConstraint,
-    LongOnly,
     MaxWeight,
-    TargetActiveRisk,
     FullyInvested,
     MinPositionValue,
     MaxTurnover,
@@ -27,12 +23,25 @@ from harbinger.constraints import (
 
 @dataclass
 class BacktestConfig:
-    """Configuration for backtest."""
+    """
+    Configuration for backtest.
+    
+    Risk control modes:
+    - Fixed gamma: Set `gamma` to a float value (e.g., 1.0, 10.0, 100.0)
+    - Target active risk: Set `gamma="dynamic"` and `target_active_risk` to desired level (e.g., 0.05)
+    
+    When using dynamic gamma, the optimizer iteratively finds the gamma that achieves
+    the target active risk through the MVO optimization itself (not via constraints).
+    """
     
     initial_capital: float = 100_000.0
-    risk_aversion: float = 1.0
+    
+    # Risk control: either fixed gamma OR dynamic with target_active_risk
+    gamma: float | Literal["dynamic"] = "dynamic"
+    target_active_risk: float | None = 0.05  # Only used when gamma="dynamic"
     
     # Constraints (list of Constraint objects)
+    # Note: Do NOT include TargetActiveRisk constraint - use target_active_risk param instead
     optimizer_constraints: list[Constraint] = field(default_factory=list)
     trading_constraints: list[Constraint] = field(default_factory=list)
     
@@ -42,12 +51,27 @@ class BacktestConfig:
     
     @classmethod
     def default(cls) -> "BacktestConfig":
-        """Create config with sensible defaults."""
+        """Create config with sensible defaults using dynamic gamma."""
         return cls(
+            gamma="dynamic",
+            target_active_risk=0.05,
             optimizer_constraints=[
-                LongOnly(),
                 MaxWeight(max_weight=0.10),
-                TargetActiveRisk(target_risk=0.05),
+            ],
+            trading_constraints=[
+                MinPositionValue(min_value=1.0),
+                MaxTurnover(max_turnover=1.0),
+            ],
+        )
+    
+    @classmethod
+    def with_fixed_gamma(cls, gamma: float = 100.0) -> "BacktestConfig":
+        """Create config with fixed gamma (risk aversion)."""
+        return cls(
+            gamma=gamma,
+            target_active_risk=None,
+            optimizer_constraints=[
+                MaxWeight(max_weight=0.10),
                 FullyInvested(),
             ],
             trading_constraints=[
@@ -116,86 +140,12 @@ Total Costs:      ${s['total_costs']:>10,.2f}
 """)
 
 
-def build_covariance_matrix(
-    factor_loadings: pl.DataFrame,
-    factor_covariances: pl.DataFrame,
-    idio_vol: pl.DataFrame,
-    date,
-) -> tuple[np.ndarray, list[str]]:
-    """Build factor model covariance matrix for a specific date."""
-    
-    # Filter to date
-    fl = factor_loadings.filter(pl.col("date") == date)
-    fc = factor_covariances.filter(pl.col("date") == date)
-    iv = idio_vol.filter(pl.col("date") == date)
-    
-    # Get common tickers
-    tickers_fl = set(fl["ticker"].unique().to_list())
-    tickers_iv = set(iv["ticker"].unique().to_list())
-    tickers = sorted(tickers_fl & tickers_iv)
-    
-    if not tickers:
-        return np.array([[]]), []
-    
-    fl = fl.filter(pl.col("ticker").is_in(tickers))
-    iv = iv.filter(pl.col("ticker").is_in(tickers))
-    
-    factors = sorted(fl["factor"].unique().to_list())
-    n_assets = len(tickers)
-    n_factors = len(factors)
-    
-    # Build B matrix (loadings)
-    B = np.zeros((n_assets, n_factors))
-    loadings_pivot = fl.pivot(on="factor", index="ticker", values="loading").sort("ticker")
-    for i, factor in enumerate(factors):
-        if factor in loadings_pivot.columns:
-            B[:, i] = loadings_pivot[factor].fill_null(0).to_numpy()
-    
-    # Build F matrix (factor covariance)
-    F = np.zeros((n_factors, n_factors))
-    for row in fc.iter_rows(named=True):
-        f1, f2, cov = row["factor_1"], row["factor_2"], row["covariance"]
-        if f1 in factors and f2 in factors:
-            i, j = factors.index(f1), factors.index(f2)
-            F[i, j] = cov
-            F[j, i] = cov
-    
-    # Build D matrix (idio variance)
-    iv_sorted = iv.sort("ticker")
-    idio_var = iv_sorted["idio_vol"].fill_null(0.02).to_numpy() ** 2
-    D = np.diag(idio_var)
-    
-    # Σ = B * F * B' + D
-    cov = B @ F @ B.T + D + np.eye(n_assets) * 1e-6
-    
-    return cov, tickers
-
-
-def optimize_mvo(
-    expected_returns: dict[str, float],
-    cov: np.ndarray,
-    tickers: list[str],
-    risk_aversion: float = 1.0,
-) -> dict[str, float]:
-    """
-    Raw MVO optimization without constraints.
-    
-    Returns unconstrained weights.
-    """
-    n = len(tickers)
-    if n == 0:
-        return {}
-    
-    mu = np.array([expected_returns.get(t, 0) for t in tickers])
-    
-    # MVO: w* = (1/λ) * Σ^-1 * μ
-    try:
-        cov_inv = np.linalg.inv(cov)
-        weights = (1.0 / risk_aversion) * cov_inv @ mu
-    except np.linalg.LinAlgError:
-        weights = np.ones(n) / n
-    
-    return dict(zip(tickers, weights))
+from harbinger.optimize import (
+    build_factor_covariance,
+    mean_variance_optimize,
+    mean_variance_dynamic,
+    calculate_active_risk,
+)
 
 
 def backtest(
@@ -273,7 +223,7 @@ def backtest(
             continue
         
         # Build covariance matrix
-        cov, cov_tickers = build_covariance_matrix(
+        cov, cov_tickers = build_factor_covariance(
             factor_loadings, factor_covariances, idio_vol, date
         )
         
@@ -303,12 +253,30 @@ def backtest(
             for row in day_prices.iter_rows(named=True)
         }
         
-        # Step 1: Raw MVO optimization
-        raw_weights = optimize_mvo(
-            expected_returns, cov, cov_tickers, config.risk_aversion
-        )
+        # Step 1: MVO optimization
+        # Either fixed gamma or dynamic gamma with target active risk
+        if config.gamma == "dynamic":
+            # Dynamic gamma mode: find gamma that achieves target active risk
+            if config.target_active_risk is None:
+                raise ValueError("target_active_risk required when gamma='dynamic'")
+            
+            optimized_weights, _, _ = mean_variance_dynamic(
+                expected_returns=expected_returns,
+                cov_matrix=cov,
+                tickers=cov_tickers,
+                benchmark_weights=bench_dict,
+                target_active_risk=config.target_active_risk,
+            )
+        else:
+            # Fixed gamma mode
+            optimized_weights = mean_variance_optimize(
+                expected_returns=expected_returns,
+                cov_matrix=cov,
+                tickers=cov_tickers,
+                gamma=config.gamma,
+            )
         
-        # Step 2: Apply optimizer constraints
+        # Step 2: Apply optimizer constraints (e.g., MaxWeight)
         optimizer_context = {
             "cov_matrix": cov,
             "benchmark_weights": bench_dict,
@@ -318,7 +286,7 @@ def backtest(
         }
         
         optimized_weights = apply_optimizer_constraints(
-            raw_weights,
+            optimized_weights,
             config.optimizer_constraints,
             optimizer_context,
         )

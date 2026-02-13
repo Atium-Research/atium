@@ -25,9 +25,7 @@ from harbinger.data import (
 )
 from harbinger.backtest import backtest, BacktestConfig
 from harbinger.constraints import (
-    LongOnly,
     MaxWeight,
-    TargetActiveRisk,
     FullyInvested,
     MinPositionValue,
     MaxTurnover,
@@ -70,20 +68,21 @@ def main():
     print(f"   Benchmark weights: {benchmark_weights.shape}")
 
     # ========================================
-    # 2. Configure constraints
+    # 2. Configure backtest
     # ========================================
-    print("\n⚙️  Configuring constraints...")
+    print("\n⚙️  Configuring backtest...")
 
+    # Option 1: Dynamic gamma with target active risk (default)
     config = BacktestConfig(
         initial_capital=100_000,
-        risk_aversion=1.0,
         
-        # Optimizer constraints (applied during MVO)
+        # Risk control: dynamic gamma to achieve 5% active risk
+        gamma="dynamic",
+        target_active_risk=0.05,
+        
+        # Optimizer constraints (applied after MVO)
         optimizer_constraints=[
-            LongOnly(),
             MaxWeight(max_weight=0.10),
-            TargetActiveRisk(target_risk=0.05),
-            FullyInvested(),
         ],
         
         # Trading constraints (applied after optimization)
@@ -95,7 +94,15 @@ def main():
         slippage_bps=5.0,
         commission_bps=10.0,
     )
+    
+    # Option 2: Fixed gamma (uncomment to use)
+    # config = BacktestConfig.with_fixed_gamma(gamma=100.0)
 
+    if config.gamma == "dynamic":
+        print(f"   Mode: Dynamic gamma (target active risk: {config.target_active_risk*100:.1f}%)")
+    else:
+        print(f"   Mode: Fixed gamma = {config.gamma}")
+    
     print("   Optimizer constraints:")
     for c in config.optimizer_constraints:
         print(f"      - {c.__class__.__name__}")

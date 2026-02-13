@@ -1,5 +1,8 @@
 """Portfolio optimization primitives."""
 
+from typing import Literal
+
+import cvxpy as cp
 import numpy as np
 import polars as pl
 
@@ -84,36 +87,171 @@ def calculate_active_risk(
     return float(vol)
 
 
+def solve_mvo_cvxpy(
+    alphas: np.ndarray,
+    cov_matrix: np.ndarray,
+    gamma: float,
+) -> np.ndarray:
+    """
+    Solve MVO using cvxpy with constraints.
+    
+    Max: alpha' @ w - (gamma / 2) * w' @ Σ @ w
+    s.t. sum(w) = 1, w >= 0
+    """
+    n = len(alphas)
+    weights = cp.Variable(n)
+
+    objective = cp.Maximize(
+        cp.matmul(weights, alphas)
+        - 0.5 * gamma * cp.quad_form(weights, cov_matrix)
+    )
+
+    constraints = [
+        cp.sum(weights) == 1,  # Full investment
+        weights >= 0,  # Long only
+    ]
+
+    problem = cp.Problem(objective, constraints)
+    problem.solve()
+
+    return weights.value
+
+
 def mean_variance_optimize(
     expected_returns: dict[str, float],
     cov_matrix: np.ndarray,
     tickers: list[str],
-    risk_aversion: float = 1.0,
-    long_only: bool = True,
+    gamma: float = 1.0,
 ) -> dict[str, float]:
-    """Mean-variance optimization."""
+    """
+    Mean-variance optimization using cvxpy.
+    
+    Args:
+        expected_returns: Dict mapping ticker -> expected return (alpha)
+        cov_matrix: Covariance matrix (n x n)
+        tickers: List of tickers (defines ordering)
+        gamma: Risk aversion parameter
+    
+    Returns:
+        Dict mapping ticker -> optimal weight
+    """
     n = len(tickers)
     if n == 0:
         return {}
 
-    mu = np.array([expected_returns.get(t, 0) for t in tickers])
-
-    try:
-        cov_inv = np.linalg.inv(cov_matrix)
-        weights = (1.0 / risk_aversion) * cov_inv @ mu
-    except np.linalg.LinAlgError:
-        weights = np.ones(n) / n
-
-    if long_only:
-        weights = np.maximum(weights, 0)
-
-    total = np.sum(np.abs(weights))
-    if total > 0:
-        weights = weights / total
-    else:
+    alphas = np.array([expected_returns.get(t, 0) for t in tickers])
+    
+    weights = solve_mvo_cvxpy(alphas, cov_matrix, gamma)
+    
+    if weights is None:
+        # Fallback to equal weight if solver fails
         weights = np.ones(n) / n
 
     return dict(zip(tickers, weights))
+
+
+def _predict_gamma(data: list[tuple[float, float]], target_risk: float) -> float:
+    """
+    Predict gamma to achieve target active risk using linear model.
+    
+    Based on the relationship: active_risk ≈ M / (2 * gamma)
+    where M is fitted from observed (gamma, active_risk) pairs.
+    
+    Args:
+        data: List of (gamma, active_risk) tuples from previous iterations
+        target_risk: Target active risk to achieve
+    
+    Returns:
+        Predicted gamma value
+    """
+    data_arr = np.array(data)
+    gammas = data_arr[:, 0]
+    sigmas = data_arr[:, 1]
+
+    # Model: sigma = M / (2 * gamma) => M = 2 * gamma * sigma
+    # Fit M via least squares: X = 1/(2*gamma), y = sigma
+    X = 1.0 / (2.0 * gammas)
+    M = np.dot(X, sigmas) / np.dot(X, X)
+
+    # Target: target_risk = M / (2 * gamma) => gamma = M / (2 * target_risk)
+    return M / (2.0 * target_risk)
+
+
+def mean_variance_dynamic(
+    expected_returns: dict[str, float],
+    cov_matrix: np.ndarray,
+    tickers: list[str],
+    benchmark_weights: dict[str, float],
+    target_active_risk: float = 0.05,
+    max_iterations: int = 5,
+    tolerance: float = 0.005,
+) -> tuple[dict[str, float], float, float]:
+    """
+    MVO with dynamic gamma to target specific active risk.
+    
+    Iteratively adjusts gamma (risk aversion) to achieve target active risk.
+    Uses cvxpy solver at each iteration.
+    
+    This is the approach from nt-backtester: rather than scaling weights post-hoc,
+    we find the gamma that produces the desired active risk through the optimizer.
+    
+    Args:
+        expected_returns: Dict mapping ticker -> expected return (alpha)
+        cov_matrix: Covariance matrix (n x n)
+        tickers: List of tickers (defines ordering)
+        benchmark_weights: Dict mapping ticker -> benchmark weight
+        target_active_risk: Target annualized active risk (tracking error)
+        max_iterations: Maximum iterations to find optimal gamma
+        tolerance: Acceptable error in active risk
+    
+    Returns:
+        (weights, final_gamma, achieved_active_risk)
+    """
+    n = len(tickers)
+    if n == 0:
+        return {}, 0.0, 0.0
+
+    alphas = np.array([expected_returns.get(t, 0) for t in tickers])
+    bench = np.array([benchmark_weights.get(t, 0) for t in tickers])
+    
+    # Normalize benchmark weights
+    if bench.sum() > 0:
+        bench = bench / bench.sum()
+    else:
+        bench = np.ones(n) / n
+
+    active_risk = float("inf")
+    gamma = None
+    data: list[tuple[float, float]] = []
+    
+    for iteration in range(max_iterations):
+        # First iteration: start with gamma=100, then predict
+        if gamma is None:
+            gamma = 100.0
+        else:
+            gamma = _predict_gamma(data, target_active_risk)
+            # Clamp gamma to reasonable range
+            gamma = max(1.0, min(gamma, 10000.0))
+
+        # Solve MVO with current gamma
+        raw_weights = solve_mvo_cvxpy(alphas, cov_matrix, gamma)
+        
+        if raw_weights is None:
+            # Solver failed, fall back to equal weight
+            raw_weights = np.ones(n) / n
+
+        # Calculate active risk
+        active_risk = calculate_active_risk(raw_weights, bench, cov_matrix)
+        
+        # Record data point for prediction
+        data.append((gamma, active_risk))
+        
+        # Check convergence
+        if abs(active_risk - target_active_risk) <= tolerance:
+            break
+
+    final_weights = dict(zip(tickers, raw_weights))
+    return final_weights, gamma, active_risk
 
 
 def mean_variance_with_risk_target(
@@ -127,93 +265,23 @@ def mean_variance_with_risk_target(
     tolerance: float = 0.002,
 ) -> tuple[dict[str, float], float, float]:
     """
-    MVO with iterative scaling to target specific active risk.
+    DEPRECATED: Use mean_variance_dynamic instead.
     
-    Iteratively adjusts scale factor to account for long-only constraint compression.
+    MVO with iterative scaling to target specific active risk.
+    This version scales weights post-hoc rather than finding optimal gamma.
     
     Returns: (weights, scale_factor, achieved_active_risk)
     """
-    n = len(tickers)
-    if n == 0:
-        return {}, 0.0, 0.0
-
-    mu = np.array([expected_returns.get(t, 0) for t in tickers])
-    bench = np.array([benchmark_weights.get(t, 0) for t in tickers])
-
-    # Normalize benchmark weights
-    if bench.sum() > 0:
-        bench = bench / bench.sum()
-    else:
-        bench = np.ones(n) / n
-
-    # Run MVO with low lambda to get aggressive direction
-    lambda_ = 1.0
-    try:
-        cov_inv = np.linalg.inv(cov_matrix)
-        raw_weights = (1.0 / lambda_) * cov_inv @ mu
-    except np.linalg.LinAlgError:
-        raw_weights = np.ones(n) / n
-
-    # Normalize to get direction (sum of abs = 1)
-    raw_sum = np.sum(np.abs(raw_weights))
-    if raw_sum > 0:
-        raw_weights = raw_weights / raw_sum
-
-    # Active direction
-    active_direction = raw_weights - bench
-
-    # Iteratively find scale that achieves target after constraints
-    scale = 1.0
-    achieved_risk = 0.0
-
-    for _ in range(max_iterations):
-        # Apply scale
-        scaled_active = active_direction * scale
-        weights = bench + scaled_active
-
-        # Apply long-only
-        if long_only:
-            weights = np.maximum(weights, 0)
-
-        # Renormalize
-        total = np.sum(weights)
-        if total > 0:
-            weights = weights / total
-        else:
-            weights = bench.copy()
-
-        # Calculate achieved risk
-        achieved_risk = calculate_active_risk(weights, bench, cov_matrix)
-
-        # Check convergence
-        if abs(achieved_risk - target_active_risk) < tolerance:
-            break
-
-        # Adjust scale
-        if achieved_risk > 0:
-            # Scale up/down proportionally
-            scale = scale * (target_active_risk / achieved_risk)
-            scale = min(scale, 100.0)  # Cap scale to avoid explosion
-        else:
-            scale = scale * 2.0
-
-    final_weights = dict(zip(tickers, weights))
-    return final_weights, scale, achieved_risk
-
-
-def _predict_lambda(data: list[tuple[float, float]], target_risk: float) -> float:
-    """Predict lambda to achieve target risk using linear model."""
-    data_arr = np.array(data)
-    lambdas = data_arr[:, 0]
-    sigmas = data_arr[:, 1]
-
-    # Model: sigma = M / (2 * lambda) => M = 2 * lambda * sigma
-    # Fit M via least squares: X = 1/(2*lambda), y = sigma
-    X = 1.0 / (2.0 * lambdas)
-    M = np.dot(X, sigmas) / np.dot(X, X)
-
-    # Target: target_risk = M / (2 * lambda) => lambda = M / (2 * target_risk)
-    return M / (2.0 * target_risk)
+    # Redirect to dynamic version
+    return mean_variance_dynamic(
+        expected_returns=expected_returns,
+        cov_matrix=cov_matrix,
+        tickers=tickers,
+        benchmark_weights=benchmark_weights,
+        target_active_risk=target_active_risk,
+        max_iterations=max_iterations,
+        tolerance=tolerance,
+    )
 
 
 def signal_to_expected_returns(

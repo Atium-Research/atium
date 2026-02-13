@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=2.0",
     "bear-lake",
     "python-dotenv",
+    "cvxpy>=1.4",
 ]
 
 [project.optional-dependencies]
