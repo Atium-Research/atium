@@ -41,14 +41,21 @@ def main():
 
     client = get_bear_lake_client()
 
-    start_date = "2025-06-01"
+    start_date = "2023-01-01"
     end_date = "2026-01-31"
 
     prices = load_prices(client, start_date, end_date)
     print(f"   Prices: {prices.shape}")
 
-    signals = load_signals(client, start_date, end_date, signal_name="reversal")
-    print(f"   Signals: {signals.shape}")
+    signals_raw = load_signals(client, start_date, end_date, signal_name="reversal")
+    print(f"   Signals (raw): {signals_raw.shape}")
+    
+    # LAG SIGNALS BY 1 DAY to avoid look-ahead bias
+    # Signal from day T-1 is used to trade on day T
+    signals = signals_raw.with_columns([
+        pl.col("date").shift(-1).over("ticker").alias("trade_date")
+    ]).drop("date").rename({"trade_date": "date"}).drop_nulls()
+    print(f"   Signals (lagged): {signals.shape}")
 
     factor_loadings = load_factor_loadings(client, start_date, end_date)
     print(f"   Factor loadings: {factor_loadings.shape}")
