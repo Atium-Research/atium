@@ -25,7 +25,7 @@ from harbinger.data import (
 )
 from harbinger.backtest import backtest, BacktestConfig
 from harbinger.constraints import (
-    MaxWeight,
+    LongOnly,
     FullyInvested,
     MinPositionValue,
     MaxTurnover,
@@ -82,7 +82,8 @@ def main():
         
         # Optimizer constraints (applied after MVO)
         optimizer_constraints=[
-            MaxWeight(max_weight=0.10),
+            LongOnly(),
+            FullyInvested(),
         ],
         
         # Trading constraints (applied after optimization)
