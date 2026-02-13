@@ -5,10 +5,24 @@ Single entry point for running backtests with MVO and trading constraints.
 """
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any
 
 import numpy as np
 import polars as pl
+
+from harbinger.constraints import (
+    Constraint,
+    OptimizerConstraint,
+    TradingConstraint,
+    LongOnly,
+    MaxWeight,
+    TargetActiveRisk,
+    FullyInvested,
+    MinPositionValue,
+    MaxTurnover,
+    apply_optimizer_constraints,
+    apply_trading_constraints,
+)
 
 
 @dataclass
@@ -16,18 +30,31 @@ class BacktestConfig:
     """Configuration for backtest."""
     
     initial_capital: float = 100_000.0
-    target_active_risk: float = 0.05
     risk_aversion: float = 1.0
     
-    # Trading constraints
-    min_position_value: float = 1.0
-    max_position_weight: float = 0.10
-    max_turnover: float = 1.0
-    long_only: bool = True
+    # Constraints (list of Constraint objects)
+    optimizer_constraints: list[Constraint] = field(default_factory=list)
+    trading_constraints: list[Constraint] = field(default_factory=list)
     
     # Costs
     slippage_bps: float = 5.0
     commission_bps: float = 10.0
+    
+    @classmethod
+    def default(cls) -> "BacktestConfig":
+        """Create config with sensible defaults."""
+        return cls(
+            optimizer_constraints=[
+                LongOnly(),
+                MaxWeight(max_weight=0.10),
+                TargetActiveRisk(target_risk=0.05),
+                FullyInvested(),
+            ],
+            trading_constraints=[
+                MinPositionValue(min_value=1.0),
+                MaxTurnover(max_turnover=1.0),
+            ],
+        )
 
 
 @dataclass
@@ -144,141 +171,31 @@ def build_covariance_matrix(
     return cov, tickers
 
 
-def calculate_active_risk(
-    weights: np.ndarray,
-    benchmark: np.ndarray,
-    cov: np.ndarray,
-) -> float:
-    """Calculate annualized active risk."""
-    active = weights - benchmark
-    var = active @ cov @ active
-    return float(np.sqrt(var) * np.sqrt(252))
-
-
-def optimize_portfolio(
+def optimize_mvo(
     expected_returns: dict[str, float],
     cov: np.ndarray,
     tickers: list[str],
-    benchmark: dict[str, float],
-    config: BacktestConfig,
+    risk_aversion: float = 1.0,
 ) -> dict[str, float]:
     """
-    Run MVO with risk targeting.
+    Raw MVO optimization without constraints.
     
-    1. Compute raw MVO weights
-    2. Scale to target active risk
-    3. Apply long-only constraint
+    Returns unconstrained weights.
     """
     n = len(tickers)
     if n == 0:
         return {}
     
     mu = np.array([expected_returns.get(t, 0) for t in tickers])
-    bench = np.array([benchmark.get(t, 0) for t in tickers])
-    
-    # Normalize benchmark
-    if bench.sum() > 0:
-        bench = bench / bench.sum()
-    else:
-        bench = np.ones(n) / n
     
     # MVO: w* = (1/λ) * Σ^-1 * μ
     try:
         cov_inv = np.linalg.inv(cov)
-        raw = (1.0 / config.risk_aversion) * cov_inv @ mu
+        weights = (1.0 / risk_aversion) * cov_inv @ mu
     except np.linalg.LinAlgError:
-        raw = np.ones(n) / n
-    
-    # Normalize raw weights
-    raw_sum = np.sum(np.abs(raw))
-    if raw_sum > 0:
-        raw = raw / raw_sum
-    
-    # Scale to target active risk (iterative due to long-only constraint)
-    active_dir = raw - bench
-    scale = 1.0
-    
-    for _ in range(15):
-        scaled = active_dir * scale
-        weights = bench + scaled
-        
-        if config.long_only:
-            weights = np.maximum(weights, 0)
-        
-        total = np.sum(weights)
-        if total > 0:
-            weights = weights / total
-        
-        achieved_risk = calculate_active_risk(weights, bench, cov)
-        
-        if abs(achieved_risk - config.target_active_risk) < 0.002:
-            break
-        
-        if achieved_risk > 0:
-            scale = scale * (config.target_active_risk / achieved_risk)
-            scale = min(scale, 100.0)
+        weights = np.ones(n) / n
     
     return dict(zip(tickers, weights))
-
-
-def apply_trading_constraints(
-    target_weights: dict[str, float],
-    current_weights: dict[str, float],
-    prices: dict[str, float],
-    portfolio_value: float,
-    config: BacktestConfig,
-) -> dict[str, float]:
-    """
-    Apply trading constraints to target weights.
-    
-    1. Cap position weights
-    2. Filter out positions below min value
-    3. Cap turnover
-    """
-    constrained = {}
-    
-    for ticker, weight in target_weights.items():
-        # Skip if no price
-        if ticker not in prices:
-            continue
-        
-        # Cap position weight
-        weight = min(weight, config.max_position_weight)
-        if config.long_only:
-            weight = max(weight, 0)
-        else:
-            weight = max(weight, -config.max_position_weight)
-        
-        # Check min position value
-        position_value = abs(weight * portfolio_value)
-        if position_value < config.min_position_value:
-            continue
-        
-        constrained[ticker] = weight
-    
-    # Renormalize
-    total = sum(constrained.values())
-    if total > 0:
-        constrained = {k: v / total for k, v in constrained.items()}
-    
-    # Calculate turnover and cap if needed
-    all_tickers = set(constrained.keys()) | set(current_weights.keys())
-    turnover = sum(
-        abs(constrained.get(t, 0) - current_weights.get(t, 0))
-        for t in all_tickers
-    ) / 2  # Divide by 2 for one-way turnover
-    
-    if turnover > config.max_turnover and turnover > 0:
-        # Blend toward target
-        blend = config.max_turnover / turnover
-        constrained = {
-            t: current_weights.get(t, 0) + blend * (constrained.get(t, 0) - current_weights.get(t, 0))
-            for t in all_tickers
-        }
-        # Clean up zeros
-        constrained = {k: v for k, v in constrained.items() if abs(v) > 1e-10}
-    
-    return constrained
 
 
 def backtest(
@@ -292,15 +209,17 @@ def backtest(
     config: BacktestConfig = None,
 ) -> BacktestResult:
     """
-    Run backtest with MVO and trading constraints.
+    Run backtest with MVO and constraints.
     
-    Data alignment:
-    - Signal from day T is used to form portfolio at close of day T
-    - Forward return (T to T+1) is used to compute PnL
+    Pipeline:
+    1. MVO optimization (unconstrained)
+    2. Apply optimizer constraints
+    3. Apply trading constraints
+    4. Execute trades and compute PnL
     
     Args:
         signals: DataFrame[ticker, date, value]
-        returns: DataFrame[ticker, date, return] - daily returns
+        returns: DataFrame[ticker, date, return]
         factor_loadings: DataFrame[ticker, date, factor, loading]
         factor_covariances: DataFrame[date, factor_1, factor_2, covariance]
         idio_vol: DataFrame[ticker, date, idio_vol]
@@ -312,12 +231,9 @@ def backtest(
         BacktestResult with daily PnL and returns
     """
     if config is None:
-        config = BacktestConfig()
+        config = BacktestConfig.default()
     
-    # NO LAGGING - use signals as-is, forward shift returns instead
-    # Signal_T forms portfolio at close of T, captures return from T to T+1
-    
-    # Get common dates across all data
+    # Get common dates
     signal_dates = set(signals["date"].unique().to_list())
     return_dates = set(returns["date"].unique().to_list())
     factor_dates = set(factor_loadings["date"].unique().to_list())
@@ -332,8 +248,7 @@ def backtest(
     if len(common_dates) < 2:
         raise ValueError("Not enough common dates for backtest")
     
-    # Forward returns: signal_T forms portfolio at close of T
-    # Captures return from close_T to close_T+1 = forward_return at T
+    # Forward returns: signal_T forms portfolio at close of T, captures return T→T+1
     returns_sorted = returns.sort(["ticker", "date"])
     forward_returns = returns_sorted.with_columns([
         pl.col("return").shift(-1).over("ticker").alias("forward_return")
@@ -388,14 +303,37 @@ def backtest(
             for row in day_prices.iter_rows(named=True)
         }
         
-        # Step 1: MVO optimization
-        target_weights = optimize_portfolio(
-            expected_returns, cov, cov_tickers, bench_dict, config
+        # Step 1: Raw MVO optimization
+        raw_weights = optimize_mvo(
+            expected_returns, cov, cov_tickers, config.risk_aversion
         )
         
-        # Step 2: Apply trading constraints
+        # Step 2: Apply optimizer constraints
+        optimizer_context = {
+            "cov_matrix": cov,
+            "benchmark_weights": bench_dict,
+            "tickers": cov_tickers,
+            "prices": price_dict,
+            "portfolio_value": portfolio_value,
+        }
+        
+        optimized_weights = apply_optimizer_constraints(
+            raw_weights,
+            config.optimizer_constraints,
+            optimizer_context,
+        )
+        
+        # Step 3: Apply trading constraints
+        trading_context = {
+            "portfolio_value": portfolio_value,
+            "current_weights": current_weights,
+            "prices": price_dict,
+        }
+        
         final_weights = apply_trading_constraints(
-            target_weights, current_weights, price_dict, portfolio_value, config
+            optimized_weights,
+            config.trading_constraints,
+            trading_context,
         )
         
         # Calculate trades
@@ -425,8 +363,6 @@ def backtest(
             })
         
         # Calculate portfolio return using forward returns
-        # Signal_T forms portfolio at close of T
-        # Captures return from T to T+1 = forward_return at T
         forward_dict = {
             row["ticker"]: row["forward_return"]
             for row in day_forward.iter_rows(named=True)

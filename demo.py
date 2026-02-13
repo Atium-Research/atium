@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Harbinger Demo — Clean backtester API.
+Harbinger Demo — Clean backtester API with class-based constraints.
 
 Usage:
     uv run python demo.py
@@ -24,6 +24,14 @@ from harbinger.data import (
     load_benchmark_weights,
 )
 from harbinger.backtest import backtest, BacktestConfig
+from harbinger.constraints import (
+    LongOnly,
+    MaxWeight,
+    TargetActiveRisk,
+    FullyInvested,
+    MinPositionValue,
+    MaxTurnover,
+)
 
 
 def main():
@@ -62,21 +70,44 @@ def main():
     print(f"   Benchmark weights: {benchmark_weights.shape}")
 
     # ========================================
-    # 2. Configure and run backtest
+    # 2. Configure constraints
     # ========================================
-    print("\n🚀 Running backtest...")
+    print("\n⚙️  Configuring constraints...")
 
     config = BacktestConfig(
         initial_capital=100_000,
-        target_active_risk=0.05,
         risk_aversion=1.0,
-        min_position_value=1.0,
-        max_position_weight=0.10,
-        max_turnover=1.0,
-        long_only=True,
+        
+        # Optimizer constraints (applied during MVO)
+        optimizer_constraints=[
+            LongOnly(),
+            MaxWeight(max_weight=0.10),
+            TargetActiveRisk(target_risk=0.05),
+            FullyInvested(),
+        ],
+        
+        # Trading constraints (applied after optimization)
+        trading_constraints=[
+            MinPositionValue(min_value=1.0),
+            MaxTurnover(max_turnover=1.0),
+        ],
+        
         slippage_bps=5.0,
         commission_bps=10.0,
     )
+
+    print("   Optimizer constraints:")
+    for c in config.optimizer_constraints:
+        print(f"      - {c.__class__.__name__}")
+    
+    print("   Trading constraints:")
+    for c in config.trading_constraints:
+        print(f"      - {c.__class__.__name__}")
+
+    # ========================================
+    # 3. Run backtest
+    # ========================================
+    print("\n🚀 Running backtest...")
 
     result = backtest(
         signals=signals,
@@ -90,7 +121,7 @@ def main():
     )
 
     # ========================================
-    # 3. Show results
+    # 4. Show results
     # ========================================
     result.print_summary()
 
