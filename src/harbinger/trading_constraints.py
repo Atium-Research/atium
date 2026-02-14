@@ -16,14 +16,16 @@ class MinPositionSize(TradingConstraint):
     Args:
         dollars: Minimum position size in dollars. Positions smaller than
             this are set to zero weight.
+        renormalize: If True, rescale remaining weights to sum to 1.0
     """
 
-    def __init__(self, dollars: float):
+    def __init__(self, dollars: float, renormalize: bool = True):
         self.dollars = dollars
+        self.renormalize = renormalize
 
     def apply(self, weights: pl.DataFrame, capital: float):
         """Set weights to zero where weight * capital < self.dollars."""
-        return (
+        result = (
             weights
             .with_columns(
                 pl.col('weight').mul(capital).alias('position_size')
@@ -36,3 +38,46 @@ class MinPositionSize(TradingConstraint):
             )
             .select('date', 'ticker', 'weight')
         )
+
+        if self.renormalize:
+            result = result.with_columns(
+                (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
+            )
+
+        return result
+
+
+class MaxPositionCount(TradingConstraint):
+    """Keep only the top N positions by absolute weight, zero out the rest.
+
+    Args:
+        max_positions: Maximum number of non-zero positions to hold.
+        renormalize: If True, rescale remaining weights to sum to 1.0
+    """
+
+    def __init__(self, max_positions: int, renormalize: bool = True):
+        self.max_positions = max_positions
+        self.renormalize = renormalize
+
+    def apply(self, weights: pl.DataFrame, capital: float):
+        """Keep only the top max_positions by absolute weight, zero out the rest."""
+        result = (
+            weights
+            .with_columns(
+                pl.col('weight').abs().rank(method='ordinal', descending=True).over('date').alias('rank')
+            )
+            .with_columns(
+                pl.when(pl.col('rank') <= self.max_positions)
+                .then(pl.col('weight'))
+                .otherwise(pl.lit(0))
+                .alias('weight')
+            )
+            .select('date', 'ticker', 'weight')
+        )
+
+        if self.renormalize:
+            result = result.with_columns(
+                (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
+            )
+
+        return result
