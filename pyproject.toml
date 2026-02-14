@@ -10,6 +10,7 @@ dependencies = [
     "bear-lake",
     "python-dotenv",
     "cvxpy>=1.4",
+    "tqdm>=4.0",
 ]
 
 [project.optional-dependencies]

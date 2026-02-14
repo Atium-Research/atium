@@ -2,8 +2,8 @@
 Constraint classes for portfolio optimization and trading.
 
 Two types:
-- OptimizerConstraint: Applied during MVO optimization
-- TradingConstraint: Applied after optimization, before execution
+- OptimizerConstraint: Applied after MVO optimization
+- TradingConstraint: Applied before trade execution
 """
 
 from abc import ABC, abstractmethod
@@ -12,6 +12,10 @@ from typing import Any
 
 import numpy as np
 
+
+# =============================================================================
+# Base Classes
+# =============================================================================
 
 class Constraint(ABC):
     """Base constraint class."""
@@ -22,14 +26,19 @@ class Constraint(ABC):
         pass
 
 
-# =============================================================================
-# Optimizer Constraints - Applied during MVO
-# =============================================================================
-
 class OptimizerConstraint(Constraint):
-    """Constraints applied during portfolio optimization."""
+    """Constraints applied after portfolio optimization."""
     pass
 
+
+class TradingConstraint(Constraint):
+    """Constraints applied before trade execution."""
+    pass
+
+
+# =============================================================================
+# Optimizer Constraints
+# =============================================================================
 
 @dataclass
 class LongOnly(OptimizerConstraint):
@@ -60,72 +69,6 @@ class MinWeight(OptimizerConstraint):
 
 
 @dataclass
-class TargetActiveRisk(OptimizerConstraint):
-    """
-    Scale weights to target a specific active risk level.
-    
-    Requires 'cov_matrix', 'benchmark_weights', and 'tickers' in context.
-    """
-    
-    target_risk: float = 0.05
-    max_iterations: int = 15
-    tolerance: float = 0.002
-    
-    def apply(self, weights: dict[str, float], context: dict[str, Any]) -> dict[str, float]:
-        cov = context.get("cov_matrix")
-        bench_dict = context.get("benchmark_weights", {})
-        tickers = context.get("tickers", list(weights.keys()))
-        
-        if cov is None or len(tickers) == 0:
-            return weights
-        
-        n = len(tickers)
-        w = np.array([weights.get(t, 0) for t in tickers])
-        bench = np.array([bench_dict.get(t, 0) for t in tickers])
-        
-        # Normalize benchmark
-        if bench.sum() > 0:
-            bench = bench / bench.sum()
-        else:
-            bench = np.ones(n) / n
-        
-        # Calculate current active risk
-        def calc_risk(weights_arr):
-            active = weights_arr - bench
-            var = active @ cov @ active
-            return float(np.sqrt(var) * np.sqrt(252))
-        
-        # Normalize weights first
-        w_sum = np.sum(np.abs(w))
-        if w_sum > 0:
-            w = w / w_sum
-        
-        # Iteratively scale to target risk
-        active_dir = w - bench
-        scale = 1.0
-        
-        for _ in range(self.max_iterations):
-            scaled = active_dir * scale
-            w_scaled = bench + scaled
-            w_scaled = np.maximum(w_scaled, 0)  # Long-only during scaling
-            
-            total = np.sum(w_scaled)
-            if total > 0:
-                w_scaled = w_scaled / total
-            
-            risk = calc_risk(w_scaled)
-            
-            if abs(risk - self.target_risk) < self.tolerance:
-                break
-            
-            if risk > 0:
-                scale = scale * (self.target_risk / risk)
-                scale = min(scale, 100.0)
-        
-        return dict(zip(tickers, w_scaled))
-
-
-@dataclass
 class FullyInvested(OptimizerConstraint):
     """Weights must sum to 1."""
     
@@ -137,13 +80,8 @@ class FullyInvested(OptimizerConstraint):
 
 
 # =============================================================================
-# Trading Constraints - Applied after optimization
+# Trading Constraints
 # =============================================================================
-
-class TradingConstraint(Constraint):
-    """Constraints applied after optimization, before trade execution."""
-    pass
-
 
 @dataclass
 class MinPositionValue(TradingConstraint):
@@ -185,7 +123,6 @@ class MinTradeValue(TradingConstraint):
             if trade_value >= self.min_value or weight == 0:
                 filtered[ticker] = weight
             else:
-                # Keep current weight if trade too small
                 filtered[ticker] = current
         
         return filtered
@@ -199,7 +136,6 @@ class MaxTurnover(TradingConstraint):
     
     def apply(self, weights: dict[str, float], context: dict[str, Any]) -> dict[str, float]:
         current_weights = context.get("current_weights", {})
-        
         all_tickers = set(weights.keys()) | set(current_weights.keys())
         
         # Calculate turnover
@@ -219,12 +155,11 @@ class MaxTurnover(TradingConstraint):
             for t in all_tickers
         }
         
-        # Clean up near-zeros
         return {k: v for k, v in blended.items() if abs(v) > 1e-10}
 
 
 # =============================================================================
-# Utility functions
+# Utility Functions
 # =============================================================================
 
 def apply_constraints(
