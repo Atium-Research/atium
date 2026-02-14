@@ -11,8 +11,8 @@ from harbinger import (
 )
 import datetime as dt
 
-start = dt.date(2023, 1, 1)
-end = dt.date(2023, 12, 31)
+start = dt.date(2026, 1, 1)
+end = dt.date(2026, 12, 31)
 data = MyDataAdapter(start, end)
 
 strategy = OptimizationStrategy(
