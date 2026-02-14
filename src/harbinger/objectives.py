@@ -4,32 +4,58 @@ import numpy as np
 
 
 class Objective(ABC):
+    """Base class for portfolio optimization objectives."""
+
     @abstractmethod
     def build(
         self, weights: cp.Variable, **kwargs
     ) -> cp.Expression:
+        """Build and return a CVXPY objective expression.
+
+        Args:
+            weights: CVXPY variable representing portfolio weights.
+            **kwargs: Additional data (alphas, covariance_matrix, benchmark_weights).
+        """
         pass
 
 
 class MaxUtility(Objective):
+    """Mean-variance utility: maximize w @ alpha - (lambda/2) * w' Sigma w.
+
+    Args:
+        lambda_: Risk-aversion parameter. Higher values penalize variance more.
+    """
+
     def __init__(self, lambda_: float):
         self.lambda_ = lambda_
 
     def build(
         self, weights: cp.Variable, **kwargs
     ) -> cp.Expression:
+        """Return the mean-variance objective expression."""
         alphas: np.ndarray = kwargs.get('alphas')
         covariance_matrix: np.ndarray = kwargs.get('covariance_matrix')
         return cp.Maximize(weights @ alphas - self.lambda_ * 0.5 * cp.quad_form(weights, covariance_matrix))
 
 
 class MaxUtilityWithTargetActiveRisk(Objective):
+    """Mean-variance utility that iteratively calibrates lambda to hit a target active risk.
+
+    Solves the optimization multiple times, using linear regression on
+    (1/2*lambda, active_risk) pairs to predict the lambda that produces
+    the desired annualized tracking error vs. the benchmark.
+
+    Args:
+        target_active_risk: Desired annualized active risk (e.g. 0.05 for 5%).
+    """
+
     def __init__(self, target_active_risk: float):
         self.target_active_risk = target_active_risk
 
     def build(
         self, weights: cp.Variable, **kwargs
     ) -> cp.Expression:
+        """Calibrate lambda to match the target active risk, then return the objective."""
         alphas: np.ndarray = kwargs.get('alphas')
         covariance_matrix: np.ndarray = kwargs.get('covariance_matrix')
         benchmark_weights: np.ndarray = kwargs.get('benchmark_weights')
@@ -68,6 +94,11 @@ class MaxUtilityWithTargetActiveRisk(Objective):
 
     @staticmethod
     def _predict_lambda(data: list[tuple[float, float]], active_risk: float) -> float:
+        """Predict the lambda that will produce the target active risk.
+
+        Uses a linear model fit on 1/(2*lambda) vs. observed active risk
+        from prior iterations.
+        """
         data_np = np.array(data)
         lambda_ = data_np[:, 0]
         sigma = data_np[:, 1]

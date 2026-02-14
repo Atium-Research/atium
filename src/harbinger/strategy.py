@@ -11,6 +11,8 @@ from harbinger.risk_model import RiskModel
 
 
 class Strategy(ABC):
+    """Base class for portfolio construction strategies."""
+
     @abstractmethod
     def generate_weights(self, date_: dt.date, capital: float) -> pl.DataFrame:
         """Return a DataFrame with columns [date, ticker, weight]."""
@@ -18,6 +20,12 @@ class Strategy(ABC):
 
 
 class OptimizationStrategy(Strategy):
+    """Portfolio strategy that uses convex optimization to select weights.
+
+    Builds a CVXPY problem from an objective function and a set of constraints,
+    solves it, and then applies post-optimization trading constraints.
+    """
+
     def __init__(
         self,
         alpha_provider: AlphaProvider,
@@ -40,6 +48,11 @@ class OptimizationStrategy(Strategy):
         alphas: pl.DataFrame,
         covariance_matrix: np.ndarray,
     ) -> pl.DataFrame:
+        """Solve the convex optimization problem and return raw weights.
+
+        Returns zero weights for all assets if the solver fails to find
+        an optimal solution.
+        """
         tickers = alphas['ticker'].unique().sort().to_list()
         alphas_np = alphas.sort('ticker')['alpha'].to_numpy()
         n_assets = len(tickers)
@@ -80,11 +93,13 @@ class OptimizationStrategy(Strategy):
     def _apply_trading_constraints(
         self, weights: pl.DataFrame, capital: float
     ) -> pl.DataFrame:
+        """Apply each trading constraint to the weights sequentially."""
         for constraint in self.trading_constraints:
             weights = constraint.apply(weights, capital=capital)
         return weights
 
     def generate_weights(self, date_: dt.date, capital: float) -> pl.DataFrame:
+        """Generate optimized portfolio weights for the given date and capital."""
         alphas = self.alpha_provider.get_alphas(date_)
         tickers = alphas['ticker'].unique().sort().to_list()
         covariance_matrix = self.risk_model.build_covariance_matrix(date_, tickers)

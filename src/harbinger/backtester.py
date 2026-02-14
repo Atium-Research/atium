@@ -8,6 +8,13 @@ from tqdm import tqdm
 
 
 class Backtester:
+    """Engine that runs a strategy over historical data and tracks portfolio performance.
+
+    On each trading date the backtester generates new weights, deducts
+    transaction costs, computes PnL from forward returns, and rolls
+    capital forward.
+    """
+
     def run(
         self,
         market_data: MarketDataProvider,
@@ -17,6 +24,16 @@ class Backtester:
         initial_capital: float,
         cost_model: CostModel | None = None,
     ) -> BacktestResult:
+        """Execute the backtest and return a BacktestResult.
+
+        Args:
+            market_data: Provider for calendar and forward returns.
+            strategy: Strategy that generates portfolio weights each period.
+            start: First date of the backtest (inclusive).
+            end: Last date of the backtest (inclusive).
+            initial_capital: Starting portfolio value in dollars.
+            cost_model: Transaction cost model (defaults to NoCost).
+        """
         if cost_model is None:
             cost_model = NoCost()
 
