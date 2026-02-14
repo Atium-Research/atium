@@ -3,25 +3,17 @@ name = "harbinger"
 version = "0.1.0"
 description = "Quant primitives for building a hedge fund"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "polars>=1.0",
-    "numpy>=2.0",
-    "bear-lake",
-    "python-dotenv",
-    "cvxpy>=1.4",
-    "tqdm>=4.0",
+    "bear-lake>=0.1.5",
+    "cvxpy>=1.8.1",
+    "numpy>=2.4.2",
+    "polars>=1.38.1",
+    "tqdm>=4.67.3",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=8.0",
-    "ruff>=0.4",
+    "matplotlib>=3.10.8",
+    "seaborn>=0.13.2",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.ruff]
-line-length = 100

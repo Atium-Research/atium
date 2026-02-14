@@ -20,7 +20,7 @@ class MaxUtility(Objective):
     ) -> cp.Expression:
         alphas: np.ndarray = kwargs.get('alphas')
         covariance_matrix: np.ndarray = kwargs.get('covariance_matrix')
-        return cp.Maximize(weights @ alphas - self.lambda_ * 0.5 * weights.T @ covariance_matrix @ weights)
+        return cp.Maximize(weights @ alphas - self.lambda_ * 0.5 * cp.quad_form(weights, covariance_matrix))
 
 
 class MaxUtilityWithTargetActiveRisk(Objective):

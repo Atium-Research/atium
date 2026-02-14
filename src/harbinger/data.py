@@ -19,7 +19,7 @@ class DataAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_returns(self, date_: dt.date) -> pl.DataFrame:
+    def get_forward_returns(self, date_: dt.date) -> pl.DataFrame:
         pass
 
     @abstractmethod

@@ -1,9 +1,8 @@
-from abc import ABC, abstractmethod
 import datetime as dt
 import bear_lake as bl
 import os
 import polars as pl
-from src.harbinger.data import DataAdapter
+from harbinger.data import DataAdapter
 
 
 class MyDataAdapter(DataAdapter):
@@ -31,7 +30,7 @@ class MyDataAdapter(DataAdapter):
         self.calendar = self._load_calendar(start, end)
         self.universe = self._load_universe(start, end)
         self.prices = self._load_prices(start, end)
-        self.returns = self._load_returns(start, end)
+        self.forward_returns = self._load_forward_returns(start, end)
         self.benchmark_weights = self._load_benchmark_weights(start, end)
         self.signals = self._load_signals(start, end)
         self.scores = self._load_scores(start, end)
@@ -70,9 +69,13 @@ class MyDataAdapter(DataAdapter):
             .sort('date', 'ticker')
         )
 
-    def _load_returns(self, start: dt.date, end: dt.date) -> pl.DataFrame:
+    def _load_forward_returns(self, start: dt.date, end: dt.date) -> pl.DataFrame:
         return self.db.query(
             bl.table('stock_returns')
+            .sort('ticker', 'date')
+            .with_columns(
+                pl.col('return').shift(-1).over('ticker')
+            )
             .filter(
                 pl.col('date').is_between(start, end)
             )
@@ -124,7 +127,8 @@ class MyDataAdapter(DataAdapter):
         return self.db.query(
             bl.table('alphas')
             .filter(
-                pl.col('date').is_between(start, end)
+                pl.col('date').is_between(start, end),
+                pl.col('alpha').is_not_null()
             )
             .drop('year')
             .sort('date', 'ticker')
@@ -134,7 +138,8 @@ class MyDataAdapter(DataAdapter):
         return self.db.query(
             bl.table('factor_loadings')
             .filter(
-                pl.col('date').is_between(start, end)
+                pl.col('date').is_between(start, end),
+                pl.col('loading').is_not_null()
             )
             .drop('year')
             .sort('date', 'ticker', 'factor')
@@ -144,7 +149,8 @@ class MyDataAdapter(DataAdapter):
         return self.db.query(
             bl.table('factor_covariances')
             .filter(
-                pl.col('date').is_between(start, end)
+                pl.col('date').is_between(start, end),
+                pl.col('covariance').is_not_null()
             )
             .drop('year')
             .sort('date', 'factor_1', 'factor_2')
@@ -154,7 +160,8 @@ class MyDataAdapter(DataAdapter):
         return self.db.query(
             bl.table('idio_vol')
             .filter(
-                pl.col('date').is_between(start, end)
+                pl.col('date').is_between(start, end),
+                pl.col('idio_vol').is_not_null()
             )
             .drop('year')
             .sort('date', 'ticker')
@@ -169,8 +176,8 @@ class MyDataAdapter(DataAdapter):
     def get_prices(self, date_: dt.date) -> pl.DataFrame:
         return self.prices.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
 
-    def get_returns(self, date_: dt.date) -> pl.DataFrame:
-        return self.returns.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
+    def get_forward_returns(self, date_: dt.date) -> pl.DataFrame:
+        return self.forward_returns.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
 
     def get_benchmark_weights(self, date_: dt.date) -> pl.DataFrame:
         return self.benchmark_weights.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
@@ -195,16 +202,3 @@ class MyDataAdapter(DataAdapter):
 
     def get_idio_vol(self, date_: dt.date) -> pl.DataFrame:
         return self.idio_vol.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
-
-if __name__ == '__main__':
-    start = dt.date(2020, 1, 1)
-    end = dt.date.today()
-
-    da = MyDataAdapter()
-    print(
-        da.get_idio_vol(
-            start=start, 
-            end=end,
-            # name='reversal'
-        )
-    )
