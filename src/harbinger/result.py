@@ -10,8 +10,13 @@ class BacktestResult:
     The underlying DataFrame has columns [date, ticker, weight, value, return, pnl].
     """
 
-    def __init__(self, results: pl.DataFrame):
+    def __init__(
+        self,
+        results: pl.DataFrame,
+        benchmark_returns: pl.DataFrame | None = None,
+    ):
         self.results = results
+        self.benchmark_returns = benchmark_returns
 
     def portfolio_returns(self) -> pl.DataFrame:
         """Aggregate position-level results into daily portfolio returns.
@@ -53,6 +58,56 @@ class BacktestResult:
             return 0.0
         return float(std * (252 ** 0.5) * 100)
 
+    def active_returns(self) -> pl.DataFrame:
+        """Compute daily active returns (portfolio minus benchmark).
+
+        Returns a DataFrame with columns [date, active_return].
+        Raises ValueError if no benchmark was provided.
+        """
+        if self.benchmark_returns is None:
+            raise ValueError("No benchmark returns available.")
+        return (
+            self.portfolio_returns()
+            .join(self.benchmark_returns, on='date', how='inner')
+            .with_columns(
+                (pl.col('portfolio_return') - pl.col('benchmark_return'))
+                .alias('active_return'),
+            )
+            .select('date', 'active_return')
+        )
+
+    def active_return_annualized(self) -> float:
+        """Compute the annualized active return as a percentage."""
+        mean = self.active_returns()['active_return'].mean()
+        if mean is None:
+            return 0.0
+        return float(mean * 252 * 100)
+
+    def tracking_error(self) -> float:
+        """Compute the annualized tracking error as a percentage."""
+        std = self.active_returns()['active_return'].std()
+        if std is None:
+            return 0.0
+        return float(std * (252 ** 0.5) * 100)
+
+    def information_ratio(self) -> float:
+        """Compute the information ratio (annualized active return / tracking error)."""
+        te = self.tracking_error()
+        if te == 0:
+            return 0.0
+        return self.active_return_annualized() / te
+
+    def relative_max_drawdown(self) -> float:
+        """Compute the maximum drawdown of cumulative active returns as a decimal."""
+        active = self.active_returns()
+        cumulative = (1 + active['active_return']).cum_prod()
+        running_max = cumulative.cum_max()
+        drawdown = (cumulative - running_max) / running_max
+        dd = drawdown.min()
+        if dd is None:
+            return 0.0
+        return float(dd)
+
     def max_drawdown(self) -> float:
         """Compute the maximum peak-to-trough drawdown as a decimal (e.g. -0.10 for 10%)."""
         portfolio = self.portfolio_returns()
@@ -65,13 +120,23 @@ class BacktestResult:
         return float(dd)
 
     def summary(self) -> pl.DataFrame:
-        """Return a single-row DataFrame with annualized return, volatility, Sharpe, and max drawdown."""
-        return pl.DataFrame({
+        """Return a single-row DataFrame with key performance metrics.
+
+        When benchmark returns are available, includes active return,
+        tracking error, information ratio, and relative max drawdown.
+        """
+        data: dict[str, list] = {
             'annualized_return_pct': [self.annualized_return()],
             'annualized_volatility_pct': [self.annualized_volatility()],
             'sharpe_ratio': [self.sharpe_ratio()],
             'max_drawdown_pct': [self.max_drawdown() * 100],
-        })
+        }
+        if self.benchmark_returns is not None:
+            data['active_return_pct'] = [self.active_return_annualized()]
+            data['tracking_error_pct'] = [self.tracking_error()]
+            data['information_ratio'] = [self.information_ratio()]
+            data['relative_max_drawdown_pct'] = [self.relative_max_drawdown() * 100]
+        return pl.DataFrame(data)
 
     def plot_equity_curve(self, path: str = 'equity_curve.png') -> str:
         """Save an equity curve chart to disk and return the file path.
