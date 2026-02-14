@@ -1,24 +1,26 @@
-import bear_lake as bl
-import os
+from test_data import MyDataAdapter
+from harbinger.backtester import Backtester
+from harbinger.objectives import MaxUtility
+from harbinger.optimizer_constraints import LongOnly, FullyInvested
+from harbinger.trading_constraints import MinPositionSize
+from harbinger.risk_model import FactorRiskModel
+import datetime as dt
 
-access_key_id = os.getenv("ACCESS_KEY_ID")
-secret_access_key = os.getenv("SECRET_ACCESS_KEY")
-region = os.getenv("REGION")
-endpoint = os.getenv("ENDPOINT")
-bucket = os.getenv("BUCKET")
+start = dt.date(2023, 1, 1)
+end = dt.date(2023, 1, 31)
+data = MyDataAdapter(start, end)
 
+bt = Backtester(data=data)
 
-storage_options = {
-    "aws_access_key_id": access_key_id,
-    "aws_secret_access_key": secret_access_key,
-    "region": region,
-    "endpoint_url": endpoint,
-}
-
-url = f"s3://{bucket}"
-
-db = bl.connect_s3(path=url, storage_options=storage_options)
-
-print(
-    db.query(bl.table("signals"))
+print("RUNNING BACKTEST...")
+results = bt.run(
+    start=start,
+    end=end,
+    capital=100_000,
+    objective=MaxUtility(lambda_=100),
+    optimizer_constraints=[LongOnly(), FullyInvested()],
+    trading_constraints=[MinPositionSize(dollars=1)],
+    risk_model=FactorRiskModel(data)
 )
+
+print(results)
