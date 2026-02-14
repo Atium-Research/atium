@@ -3,7 +3,7 @@ import datetime as dt
 import polars as pl
 import cvxpy as cp
 import numpy as np
-from harbinger.data import AlphaProvider
+from harbinger.data import AlphaProvider, RiskDataProvider
 from harbinger.objectives import Objective
 from harbinger.optimizer_constraints import OptimizerConstraint
 from harbinger.trading_constraints import TradingConstraint
@@ -25,12 +25,14 @@ class OptimizationStrategy(Strategy):
         objective: Objective,
         optimizer_constraints: list[OptimizerConstraint],
         trading_constraints: list[TradingConstraint],
+        benchmark_provider: RiskDataProvider | None = None,
     ):
         self.alpha_provider = alpha_provider
         self.risk_model = risk_model
         self.objective = objective
         self.optimizer_constraints = optimizer_constraints
         self.trading_constraints = trading_constraints
+        self.benchmark_provider = benchmark_provider
 
     def _optimize(
         self,
@@ -43,9 +45,20 @@ class OptimizationStrategy(Strategy):
         n_assets = len(tickers)
 
         weights = cp.Variable(n_assets)
-        objective = self.objective.build(
-            weights, alphas=alphas_np, covariance_matrix=covariance_matrix
-        )
+
+        build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix)
+        if self.benchmark_provider is not None:
+            bm = self.benchmark_provider.get_benchmark_weights(date_)
+            bm_weights = (
+                pl.DataFrame({'ticker': tickers})
+                .join(bm.select('ticker', 'weight'), on='ticker', how='left')
+                .with_columns(pl.col('weight').fill_null(0.0))
+                .sort('ticker')['weight']
+                .to_numpy()
+            )
+            build_kwargs['benchmark_weights'] = bm_weights
+
+        objective = self.objective.build(weights, **build_kwargs)
         constraints = [c.build(weights) for c in self.optimizer_constraints]
 
         problem = cp.Problem(objective, constraints)

@@ -2,7 +2,7 @@ from test_data import MyDataAdapter
 from harbinger import (
     Backtester,
     OptimizationStrategy,
-    MaxUtility,
+    MaxUtilityWithTargetActiveRisk,
     LongOnly,
     FullyInvested,
     MinPositionSize,
@@ -18,9 +18,10 @@ data = MyDataAdapter(start, end)
 strategy = OptimizationStrategy(
     alpha_provider=data,
     risk_model=FactorRiskModel(data),
-    objective=MaxUtility(lambda_=100),
+    objective=MaxUtilityWithTargetActiveRisk(target_active_risk=0.05),
     optimizer_constraints=[LongOnly(), FullyInvested()],
     trading_constraints=[MinPositionSize(dollars=1)],
+    benchmark_provider=data,
 )
 
 bt = Backtester()
