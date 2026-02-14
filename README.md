@@ -11,16 +11,13 @@ pip install harbinger
 ## Quick Start
 
 ```python
-from harbinger import (
-    Backtester,
-    OptimizationStrategy,
-    MaxUtilityWithTargetActiveRisk,
-    LongOnly,
-    FullyInvested,
-    MinPositionSize,
-    FactorRiskModel,
-    LinearCost,
-)
+from harbinger.backtester import Backtester
+from harbinger.strategy import OptimizationStrategy
+from harbinger.objectives import MaxUtilityWithTargetActiveRisk
+from harbinger.optimizer_constraints import LongOnly, FullyInvested
+from harbinger.trading_constraints import MinPositionSize
+from harbinger.risk_model import FactorRiskModel
+from harbinger.costs import LinearCost
 import datetime as dt
 
 # 1. Create your data adapter (see "Data Adapters" below)
@@ -73,7 +70,7 @@ Subclass `DataAdapter` and implement every abstract method. Each method receives
 ```python
 import datetime as dt
 import polars as pl
-from harbinger import DataAdapter
+from harbinger.data import DataAdapter
 
 
 class MyDataAdapter(DataAdapter):
