@@ -1,7 +1,7 @@
 [project]
-name = "harbinger"
+name = "allomancy"
 version = "0.1.0"
-description = "Quant primitives for building a hedge fund"
+description = "Quant research backtesting tools."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
