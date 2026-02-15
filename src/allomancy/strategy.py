@@ -3,11 +3,11 @@ import datetime as dt
 import polars as pl
 import cvxpy as cp
 import numpy as np
-from harbinger.data import AlphaProvider, RiskDataProvider
-from harbinger.objectives import Objective
-from harbinger.optimizer_constraints import OptimizerConstraint
-from harbinger.trading_constraints import TradingConstraint
-from harbinger.risk_model import RiskModel
+from allomancy.data import AlphaProvider, RiskDataProvider
+from allomancy.objectives import Objective
+from allomancy.optimizer_constraints import OptimizerConstraint
+from allomancy.trading_constraints import TradingConstraint
+from allomancy.risk_model import RiskModel
 
 
 class Strategy(ABC):

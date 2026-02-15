@@ -1,23 +1,23 @@
-# Harbinger
+# Allomancy
 
-Quant primitives for building a hedge fund. Harbinger provides a modular backtesting framework with convex portfolio optimization, pluggable risk models, transaction cost modeling, and flexible data adapters.
+Quant primitives for building a hedge fund. Allomancy provides a modular backtesting framework with convex portfolio optimization, pluggable risk models, transaction cost modeling, and flexible data adapters.
 
 ## Installation
 
 ```bash
-pip install harbinger
+pip install allomancy
 ```
 
 ## Quick Start
 
 ```python
-from harbinger.backtester import Backtester
-from harbinger.strategy import OptimizationStrategy
-from harbinger.objectives import MaxUtilityWithTargetActiveRisk
-from harbinger.optimizer_constraints import LongOnly, FullyInvested
-from harbinger.trading_constraints import MinPositionSize
-from harbinger.risk_model import FactorRiskModel
-from harbinger.costs import LinearCost
+from allomancy.backtester import Backtester
+from allomancy.strategy import OptimizationStrategy
+from allomancy.objectives import MaxUtilityWithTargetActiveRisk
+from allomancy.optimizer_constraints import LongOnly, FullyInvested
+from allomancy.trading_constraints import MinPositionSize
+from allomancy.risk_model import FactorRiskModel
+from allomancy.costs import LinearCost
 import datetime as dt
 
 # 1. Create your data adapter (see "Data Adapters" below)
@@ -53,7 +53,7 @@ result.plot_equity_curve("equity_curve.png")
 
 ## Data Adapters
 
-Harbinger uses three abstract data provider interfaces that you implement to connect your own data:
+Allomancy uses three abstract data provider interfaces that you implement to connect your own data:
 
 | Interface | Purpose |
 |-----------|---------|
@@ -70,7 +70,7 @@ Subclass `DataAdapter` and implement every abstract method. Each method receives
 ```python
 import datetime as dt
 import polars as pl
-from harbinger.data import DataAdapter
+from allomancy.data import DataAdapter
 
 
 class MyDataAdapter(DataAdapter):

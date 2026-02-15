@@ -1,8 +1,8 @@
 from typing import Literal
-from harbinger.data import MarketDataProvider, RiskDataProvider
-from harbinger.strategy import Strategy
-from harbinger.costs import CostModel, NoCost
-from harbinger.result import BacktestResult
+from allomancy.data import MarketDataProvider, RiskDataProvider
+from allomancy.strategy import Strategy
+from allomancy.costs import CostModel, NoCost
+from allomancy.result import BacktestResult
 import polars as pl
 import datetime as dt
 from tqdm import tqdm

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from harbinger.data import RiskDataProvider
+from allomancy.data import RiskDataProvider
 import datetime as dt
 import numpy as np
 import polars as pl
