@@ -1,23 +1,23 @@
-# Allomancy
+# Malatium
 
-Quant primitives for building a hedge fund. Allomancy provides a modular backtesting framework with convex portfolio optimization, pluggable risk models, transaction cost modeling, and flexible data providers.
+Quant primitives for building a hedge fund. Malatium provides a modular backtesting framework with convex portfolio optimization, pluggable risk models, transaction cost modeling, and flexible data providers.
 
 ## Installation
 
 ```bash
-pip install allomancy
+pip install malatium
 ```
 
 ## Quick Start
 
 ```python
-from allomancy.backtester import Backtester
-from allomancy.strategy import OptimizationStrategy
-from allomancy.objectives import MaxUtilityWithTargetActiveRisk
-from allomancy.optimizer_constraints import LongOnly, FullyInvested
-from allomancy.trading_constraints import MinPositionSize
-from allomancy.risk_model import FactorRiskModel
-from allomancy.costs import LinearCost
+from malatium.backtester import Backtester
+from malatium.strategy import OptimizationStrategy
+from malatium.objectives import MaxUtilityWithTargetActiveRisk
+from malatium.optimizer_constraints import LongOnly, FullyInvested
+from malatium.trading_constraints import MinPositionSize
+from malatium.risk_model import FactorRiskModel
+from malatium.costs import LinearCost
 import datetime as dt
 
 # 1. Create your data providers (see "Data Providers" below)

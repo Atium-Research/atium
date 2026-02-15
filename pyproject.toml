@@ -1,5 +1,5 @@
 [project]
-name = "allomancy"
+name = "malatium"
 version = "0.1.1"
 description = "Quant research backtesting tools."
 readme = "README.md"

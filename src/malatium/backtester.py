@@ -1,8 +1,8 @@
 from typing import Literal
-from allomancy.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
-from allomancy.strategy import Strategy
-from allomancy.costs import CostModel, NoCost
-from allomancy.result import BacktestResult
+from malatium.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
+from malatium.strategy import Strategy
+from malatium.costs import CostModel, NoCost
+from malatium.result import BacktestResult
 import polars as pl
 import datetime as dt
 from tqdm import tqdm
