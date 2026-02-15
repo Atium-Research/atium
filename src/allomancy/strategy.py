@@ -3,7 +3,7 @@ import datetime as dt
 import polars as pl
 import cvxpy as cp
 import numpy as np
-from allomancy.data import AlphaProvider, RiskDataProvider
+from allomancy.data import AlphaProvider, BenchmarkProvider
 from allomancy.objectives import Objective
 from allomancy.optimizer_constraints import OptimizerConstraint
 from allomancy.trading_constraints import TradingConstraint
@@ -28,19 +28,19 @@ class OptimizationStrategy(Strategy):
 
     def __init__(
         self,
-        alpha_provider: AlphaProvider,
+        alphas: AlphaProvider,
         risk_model: RiskModel,
         objective: Objective,
         optimizer_constraints: list[OptimizerConstraint],
         trading_constraints: list[TradingConstraint],
-        benchmark_provider: RiskDataProvider | None = None,
+        benchmark: BenchmarkProvider | None = None,
     ):
-        self.alpha_provider = alpha_provider
+        self.alphas = alphas
         self.risk_model = risk_model
         self.objective = objective
         self.optimizer_constraints = optimizer_constraints
         self.trading_constraints = trading_constraints
-        self.benchmark_provider = benchmark_provider
+        self.benchmark = benchmark
 
     def _optimize(
         self,
@@ -60,8 +60,8 @@ class OptimizationStrategy(Strategy):
         weights = cp.Variable(n_assets)
 
         build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix)
-        if self.benchmark_provider is not None:
-            bm = self.benchmark_provider.get_benchmark_weights(date_)
+        if self.benchmark is not None:
+            bm = self.benchmark.get(date_)
             bm_weights = (
                 pl.DataFrame({'ticker': tickers})
                 .join(bm.select('ticker', 'weight'), on='ticker', how='left')
@@ -100,7 +100,7 @@ class OptimizationStrategy(Strategy):
 
     def generate_weights(self, date_: dt.date, capital: float) -> pl.DataFrame:
         """Generate optimized portfolio weights for the given date and capital."""
-        alphas = self.alpha_provider.get_alphas(date_)
+        alphas = self.alphas.get(date_)
         tickers = alphas['ticker'].unique().sort().to_list()
         covariance_matrix = self.risk_model.build_covariance_matrix(date_, tickers)
 

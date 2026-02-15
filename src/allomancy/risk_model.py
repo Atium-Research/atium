@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from allomancy.data import RiskDataProvider
+from allomancy.data import FactorLoadingsProvider, FactorCovariancesProvider, IdioVolProvider
 import datetime as dt
 import numpy as np
 import polars as pl
@@ -20,14 +20,17 @@ class FactorRiskModel(RiskModel):
     Computes the covariance matrix from factor loadings (X), a factor
     covariance matrix (F), and a diagonal matrix of idiosyncratic
     volatilities (D).
-
-    Args:
-        data: A RiskDataProvider that supplies factor loadings, factor
-            covariances, and idiosyncratic volatility data.
     """
 
-    def __init__(self, data: RiskDataProvider):
-        self.data = data
+    def __init__(
+        self,
+        factor_loadings: FactorLoadingsProvider,
+        factor_covariances: FactorCovariancesProvider,
+        idio_vol: IdioVolProvider,
+    ):
+        self.factor_loadings = factor_loadings
+        self.factor_covariances = factor_covariances
+        self.idio_vol = idio_vol
 
     def _build_factor_loadings_matrix(self, factor_loadings: pl.DataFrame, tickers: list[str]) -> np.ndarray:
         """Pivot factor loadings into an (n_assets x n_factors) numpy matrix."""
@@ -58,9 +61,9 @@ class FactorRiskModel(RiskModel):
 
     def build_covariance_matrix(self, date_: dt.date, tickers: list[str]) -> np.ndarray:
         """Compute the full covariance matrix as X @ F @ X.T + D^2."""
-        factor_loadings = self.data.get_factor_loadings(date_)
-        factor_covariances = self.data.get_factor_covariances(date_)
-        idio_vol = self.data.get_idio_vol(date_)
+        factor_loadings = self.factor_loadings.get(date_)
+        factor_covariances = self.factor_covariances.get(date_)
+        idio_vol = self.idio_vol.get(date_)
 
         X = self._build_factor_loadings_matrix(factor_loadings, tickers)
         F = self._build_factor_covariance_matrix(factor_covariances)

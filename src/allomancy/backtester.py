@@ -1,5 +1,5 @@
 from typing import Literal
-from allomancy.data import MarketDataProvider, RiskDataProvider
+from allomancy.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
 from allomancy.strategy import Strategy
 from allomancy.costs import CostModel, NoCost
 from allomancy.result import BacktestResult
@@ -39,19 +39,21 @@ class Backtester:
 
     def run(
         self,
-        market_data: MarketDataProvider,
+        calendar: CalendarProvider,
+        returns: ReturnsProvider,
         strategy: Strategy,
         start: dt.date,
         end: dt.date,
         initial_capital: float,
         cost_model: CostModel | None = None,
         rebalance_frequency: RebalanceFrequency = 'daily',
-        benchmark: RiskDataProvider | None = None,
+        benchmark: BenchmarkProvider | None = None,
     ) -> BacktestResult:
         """Execute the backtest and return a BacktestResult.
 
         Args:
-            market_data: Provider for calendar and forward returns.
+            calendar: Provider for trading dates.
+            returns: Provider for next-period forward returns.
             strategy: Strategy that generates portfolio weights each period.
             start: First date of the backtest (inclusive).
             end: Last date of the backtest (inclusive).
@@ -60,7 +62,7 @@ class Backtester:
             rebalance_frequency: How often to rebalance — 'daily', 'weekly'
                 (first trading day of each ISO week), or 'monthly' (first
                 trading day of each calendar month).
-            benchmark: Optional risk data provider for benchmark returns.
+            benchmark: Optional benchmark provider for benchmark returns.
                 When supplied, BacktestResult will include benchmark-relative
                 analytics.
         """
@@ -73,7 +75,7 @@ class Backtester:
         results_list: list[pl.DataFrame] = []
         benchmark_returns_list: list[dict] = []
 
-        for date_ in tqdm(market_data.get_calendar(start, end), "RUNNING BACKTEST"):
+        for date_ in tqdm(calendar.get(start, end), "RUNNING BACKTEST"):
             rebalance = self._is_rebalance_date(date_, prev_date, rebalance_frequency)
 
             if rebalance:
@@ -83,7 +85,7 @@ class Backtester:
             else:
                 new_weights = holdings.with_columns(pl.lit(date_).alias('date'))
 
-            forward_returns = market_data.get_forward_returns(date_)
+            forward_returns = returns.get(date_)
 
             results = (
                 new_weights
@@ -111,7 +113,7 @@ class Backtester:
             )
 
             if benchmark is not None:
-                bm_weights = benchmark.get_benchmark_weights(date_)
+                bm_weights = benchmark.get(date_)
                 bm_return = (
                     bm_weights
                     .join(forward_returns, on=['date', 'ticker'], how='left')

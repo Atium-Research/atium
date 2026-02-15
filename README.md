@@ -1,6 +1,6 @@
 # Allomancy
 
-Quant primitives for building a hedge fund. Allomancy provides a modular backtesting framework with convex portfolio optimization, pluggable risk models, transaction cost modeling, and flexible data adapters.
+Quant primitives for building a hedge fund. Allomancy provides a modular backtesting framework with convex portfolio optimization, pluggable risk models, transaction cost modeling, and flexible data providers.
 
 ## Installation
 
@@ -20,25 +20,33 @@ from allomancy.risk_model import FactorRiskModel
 from allomancy.costs import LinearCost
 import datetime as dt
 
-# 1. Create your data adapter (see "Data Adapters" below)
+# 1. Create your data providers (see "Data Providers" below)
 start = dt.date(2026, 1, 1)
 end = dt.date(2026, 12, 31)
-data = MyDataAdapter(start, end)
+
+calendar = MyCalendarProvider(start, end)
+returns = MyReturnsProvider(start, end)
+alphas = MyAlphaProvider(start, end)
+factor_loadings = MyFactorLoadingsProvider(start, end)
+factor_covariances = MyFactorCovariancesProvider(start, end)
+idio_vol = MyIdioVolProvider(start, end)
+benchmark = MyBenchmarkProvider(start, end)
 
 # 2. Define a strategy
 strategy = OptimizationStrategy(
-    alpha_provider=data,
-    risk_model=FactorRiskModel(data),
+    alphas=alphas,
+    risk_model=FactorRiskModel(factor_loadings, factor_covariances, idio_vol),
     objective=MaxUtilityWithTargetActiveRisk(target_active_risk=0.05),
     optimizer_constraints=[LongOnly(), FullyInvested()],
     trading_constraints=[MinPositionSize(dollars=1)],
-    benchmark_provider=data,
+    benchmark=benchmark,
 )
 
 # 3. Run the backtest
 bt = Backtester()
 result = bt.run(
-    market_data=data,
+    calendar=calendar,
+    returns=returns,
     strategy=strategy,
     cost_model=LinearCost(bps=5),
     start=start,
@@ -51,100 +59,43 @@ print(result.summary())
 result.plot_equity_curve("equity_curve.png")
 ```
 
-## Data Adapters
+## Data Providers
 
-Allomancy uses three abstract data provider interfaces that you implement to connect your own data:
+Allomancy uses Protocol-based data providers — one per dataset. Each provider has a single `get()` method. Any class with a matching `get()` signature satisfies the protocol automatically (no subclassing required).
 
-| Interface | Purpose |
-|-----------|---------|
-| `MarketDataProvider` | Trading calendar, universe, prices, forward returns |
-| `AlphaProvider` | Signals, scores, and alpha (expected return) estimates |
-| `RiskDataProvider` | Benchmark weights, betas, factor loadings, factor covariances, idiosyncratic volatility |
+| Provider | `get()` signature | Returns |
+|----------|-------------------|---------|
+| `CalendarProvider` | `get(start, end) -> list[dt.date]` | Trading dates in range |
+| `ReturnsProvider` | `get(date) -> DataFrame` | `[date, ticker, return]` |
+| `AlphaProvider` | `get(date) -> DataFrame` | `[date, ticker, alpha]` |
+| `FactorLoadingsProvider` | `get(date) -> DataFrame` | `[date, ticker, factor, loading]` |
+| `FactorCovariancesProvider` | `get(date) -> DataFrame` | `[date, factor_1, factor_2, covariance]` |
+| `IdioVolProvider` | `get(date) -> DataFrame` | `[date, ticker, idio_vol]` |
+| `BenchmarkProvider` | `get(date) -> DataFrame` | `[date, ticker, weight]` |
 
-The `DataAdapter` class inherits from all three, so you can implement a single class that satisfies every provider role.
+### Writing a Data Provider
 
-### Writing a Data Adapter
-
-Subclass `DataAdapter` and implement every abstract method. Each method receives a date and returns a Polars DataFrame (or a list for calendar/universe methods).
+Each provider is a simple class with a `get()` method. Pre-loading data into memory during `__init__` is recommended for backtest speed.
 
 ```python
 import datetime as dt
 import polars as pl
-from allomancy.data import DataAdapter
 
 
-class MyDataAdapter(DataAdapter):
+class MyReturnsProvider:
     def __init__(self, start: dt.date, end: dt.date) -> None:
-        # Load or connect to your data source here.
-        # Pre-loading into memory is recommended for backtest speed.
-        self._prices = self._load_prices(start, end)
-        # ... load other tables ...
+        self._returns = load_returns_from_db(start, end)
 
-    # -- MarketDataProvider --
+    def get(self, date_: dt.date) -> pl.DataFrame:
+        return self._returns.filter(pl.col("date").eq(date_))
 
-    def get_calendar(self, start: dt.date, end: dt.date) -> list[dt.date]:
-        """Return the list of trading dates in the range."""
-        ...
 
-    def get_universe(self, date_: dt.date) -> list[str]:
-        """Return ticker symbols available on this date."""
-        ...
+class MyAlphaProvider:
+    def __init__(self, start: dt.date, end: dt.date) -> None:
+        self._alphas = load_alphas_from_db(start, end)
 
-    def get_prices(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, price]."""
-        ...
-
-    def get_forward_returns(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, return]."""
-        ...
-
-    # -- AlphaProvider --
-
-    def get_signals(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, signal]."""
-        ...
-
-    def get_scores(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, score]."""
-        ...
-
-    def get_alphas(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, alpha]."""
-        ...
-
-    # -- RiskDataProvider --
-
-    def get_benchmark_weights(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, weight]."""
-        ...
-
-    def get_betas(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, beta]."""
-        ...
-
-    def get_factor_loadings(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, factor, loading]."""
-        ...
-
-    def get_factor_covariances(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, factor_1, factor_2, covariance]."""
-        ...
-
-    def get_idio_vol(self, date_: dt.date) -> pl.DataFrame:
-        """Return a DataFrame with columns [date, ticker, idio_vol]."""
-        ...
-```
-
-### Pre-loading Pattern
-
-For best performance, load all data into memory during `__init__` and filter by date in each getter:
-
-```python
-def __init__(self, start: dt.date, end: dt.date) -> None:
-    self._prices = load_prices_from_db(start, end)
-
-def get_prices(self, date_: dt.date) -> pl.DataFrame:
-    return self._prices.filter(pl.col("date").eq(date_))
+    def get(self, date_: dt.date) -> pl.DataFrame:
+        return self._alphas.filter(pl.col("date").eq(date_))
 ```
 
 ## Components
@@ -177,7 +128,7 @@ Implement `TradingConstraint` to add your own.
 
 Build the covariance matrix used by the optimizer.
 
-- **`FactorRiskModel(risk_data_provider)`** — Computes `Sigma = X F X' + D^2` from factor loadings (`X`), factor covariances (`F`), and idiosyncratic volatilities (`D`).
+- **`FactorRiskModel(factor_loadings, factor_covariances, idio_vol)`** — Computes `Sigma = X F X' + D^2` from factor loadings (`X`), factor covariances (`F`), and idiosyncratic volatilities (`D`).
 
 Implement `RiskModel` to add your own.
 
