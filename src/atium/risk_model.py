@@ -45,22 +45,25 @@ class FactorRiskModel(RiskModel):
         self._tickers = sorted(
             set(factor_loadings["ticker"]) & set(idio_vol["ticker"])
         )
+        self._factors = sorted(factor_loadings["factor"].unique().to_list())
 
     def _build_factor_loadings_matrix(self, factor_loadings: FactorLoadings) -> np.ndarray:
         """Pivot factor loadings into an (n_assets x n_factors) numpy matrix."""
         return (
             factor_loadings.sort("ticker", "factor")
             .pivot(index="ticker", on="factor", values="loading")
-            .drop("ticker")
+            .sort("ticker")
+            .select(self._factors)
             .to_numpy()
         )
 
     def _build_factor_covariance_matrix(self, factor_covariances: FactorCovariances) -> np.ndarray:
         """Pivot factor covariances into a symmetric (n_factors x n_factors) numpy matrix."""
         return (
-            factor_covariances.sort("factor_1", "factor_2")
+            factor_covariances
             .pivot(index="factor_1", on="factor_2", values="covariance")
-            .drop("factor_1")
+            .sort("factor_1")
+            .select(self._factors)
             .to_numpy()
         )
 

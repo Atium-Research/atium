@@ -59,6 +59,7 @@ class MaxUtilityWithTargetActiveRisk(Objective):
         alphas: np.ndarray = kwargs.get('alphas')
         covariance_matrix: np.ndarray = kwargs.get('covariance_matrix')
         benchmark_weights: np.ndarray = kwargs.get('benchmark_weights')
+        optimizer_constraints = kwargs.get('constraints', [])
 
         n_assets = len(alphas)
         lambda_ = None
@@ -76,7 +77,7 @@ class MaxUtilityWithTargetActiveRisk(Objective):
 
             w = cp.Variable(n_assets)
             obj = cp.Maximize(w @ alphas - 0.5 * lambda_ * cp.quad_form(w, covariance_matrix))
-            constraints = [cp.sum(w) == 1, w >= 0]
+            constraints = [c.build(w) for c in optimizer_constraints]
             prob = cp.Problem(obj, constraints)
             prob.solve()
 

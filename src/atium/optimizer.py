@@ -52,7 +52,7 @@ class MVO:
         weights = cp.Variable(n_assets)
 
         # Build objective kwargs
-        build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix)
+        build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix, constraints=self.constraints)
         if benchmark_weights is not None:
             build_kwargs['benchmark_weights'] = benchmark_weights_np
 
@@ -63,7 +63,7 @@ class MVO:
         problem.solve()
 
         if problem.status not in ('optimal', 'optimal_inaccurate'):
-            return PortfolioWeights(pl.DataFrame({
+            return PortfolioWeights.validate(pl.DataFrame({
                 'date': [date_] * n_assets,
                 'ticker': tickers,
                 'weight': [0.0] * n_assets,
