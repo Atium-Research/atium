@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 import datetime as dt
 import polars as pl
-import numpy as np
-from atium.data import AlphaProvider, BenchmarkProvider
+from atium.data import AlphaProvider, BenchmarkWeightsProvider
 from atium.optimizer import MVO
 from atium.risk_model import RiskModel
+from atium.types import Alphas, BenchmarkWeights
 
 
 class Strategy(ABC):
@@ -28,7 +28,7 @@ class OptimizationStrategy(Strategy):
         alphas: AlphaProvider,
         risk_model: RiskModel,
         optimizer: MVO,
-        benchmark: BenchmarkProvider | None = None,
+        benchmark: BenchmarkWeightsProvider | None = None,
     ):
         self.alphas = alphas
         self.risk_model = risk_model
@@ -37,19 +37,12 @@ class OptimizationStrategy(Strategy):
 
     def generate_weights(self, date_: dt.date, capital: float) -> pl.DataFrame:
         """Generate optimized portfolio weights for the given date and capital."""
-        alphas = self.alphas.get(date_)
-        tickers = alphas['ticker'].unique().sort().to_list()
+        alphas = Alphas(self.alphas.get(date_))
+        tickers = alphas.tickers
         covariance_matrix = self.risk_model.build_covariance_matrix(date_, tickers)
 
         benchmark_weights = None
         if self.benchmark is not None:
-            bm = self.benchmark.get(date_)
-            benchmark_weights = (
-                pl.DataFrame({'ticker': tickers})
-                .join(bm.select('ticker', 'weight'), on='ticker', how='left')
-                .with_columns(pl.col('weight').fill_null(0.0))
-                .sort('ticker')['weight']
-                .to_numpy()
-            )
+            benchmark_weights = BenchmarkWeights(self.benchmark.get(date_)).align_to(tickers)
 
         return self.optimizer.optimize(date_, alphas, covariance_matrix, benchmark_weights)

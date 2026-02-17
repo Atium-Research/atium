@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 from atium.objectives import Objective
 from atium.optimizer_constraints import OptimizerConstraint
+from atium.types import Alphas, BenchmarkWeights
 
 
 class MVO:
@@ -28,9 +29,9 @@ class MVO:
     def optimize(
         self,
         date_: dt.date,
-        alphas: pl.DataFrame,
+        alphas: Alphas,
         covariance_matrix: np.ndarray,
-        benchmark_weights: np.ndarray | None = None,
+        benchmark_weights: BenchmarkWeights | None = None,
     ) -> pl.DataFrame:
         """Solve the optimization problem and return weights.
 
@@ -38,19 +39,19 @@ class MVO:
 
         Args:
             date_: The date for this optimization.
-            alphas: DataFrame with columns [date, ticker, alpha].
+            alphas: Alpha signals aligned to the asset universe.
             covariance_matrix: n_assets x n_assets covariance matrix.
-            benchmark_weights: Optional benchmark weight array aligned to tickers.
+            benchmark_weights: Optional benchmark weights aligned to the asset universe.
         """
-        tickers = alphas['ticker'].unique().sort().to_list()
-        alphas_np = alphas.sort('ticker')['alpha'].to_numpy()
+        tickers = alphas.tickers
+        alphas_np = alphas.to_numpy()
         n_assets = len(tickers)
 
         weights = cp.Variable(n_assets)
 
         build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix)
         if benchmark_weights is not None:
-            build_kwargs['benchmark_weights'] = benchmark_weights
+            build_kwargs['benchmark_weights'] = benchmark_weights.to_numpy()
 
         objective = self.objective.build(weights, **build_kwargs)
         constraints = [c.build(weights) for c in self.constraints]

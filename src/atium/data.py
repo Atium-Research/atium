@@ -39,7 +39,7 @@ class IdioVolProvider(Protocol):
     def get(self, date_: dt.date) -> pl.DataFrame: ...
 
 
-class BenchmarkProvider(Protocol):
+class BenchmarkWeightsProvider(Protocol):
     """Provides benchmark portfolio weights with columns [date, ticker, weight]."""
 
     def get(self, date_: dt.date) -> pl.DataFrame: ...

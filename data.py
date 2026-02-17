@@ -94,7 +94,7 @@ class MyIdioVolProvider:
         return self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
 
 
-class MyBenchmarkProvider:
+class MyBenchmarkWeightsProvider:
     def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> None:
         self.data = db.query(
             bl.table('benchmark_weights')

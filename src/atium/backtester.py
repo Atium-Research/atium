@@ -1,5 +1,5 @@
 from typing import Literal
-from atium.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
+from atium.data import CalendarProvider, ReturnsProvider, BenchmarkWeightsProvider
 from atium.strategy import Strategy
 from atium.trade_generator import TradeGenerator
 from atium.costs import CostModel, NoCost
@@ -48,7 +48,7 @@ class Backtester:
         initial_capital: float,
         cost_model: CostModel | None = None,
         rebalance_frequency: RebalanceFrequency = 'daily',
-        benchmark: BenchmarkProvider | None = None,
+        benchmark: BenchmarkWeightsProvider | None = None,
         trade_generator: TradeGenerator | None = None,
     ) -> BacktestResult:
         """Execute the backtest and return a BacktestResult.
