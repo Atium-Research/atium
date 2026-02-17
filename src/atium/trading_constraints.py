@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 import polars as pl
+from atium.models import PortfolioWeights
+
 
 class TradingConstraint(ABC):
     """Base class for post-optimization filters applied to portfolio weights."""
 
     @abstractmethod
-    def apply(self, weights: pl.DataFrame, capital: float):
+    def apply(self, weights: PortfolioWeights, capital: float) -> PortfolioWeights:
         """Apply this constraint to the weights DataFrame and return the filtered result."""
         pass
 
@@ -23,7 +25,7 @@ class MinPositionSize(TradingConstraint):
         self.dollars = dollars
         self.renormalize = renormalize
 
-    def apply(self, weights: pl.DataFrame, capital: float):
+    def apply(self, weights: PortfolioWeights, capital: float) -> PortfolioWeights:
         """Set weights to zero where weight * capital < self.dollars."""
         result = (
             weights
@@ -44,7 +46,7 @@ class MinPositionSize(TradingConstraint):
                 (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
             )
 
-        return result
+        return PortfolioWeights(result)
 
 
 class MaxPositionCount(TradingConstraint):
@@ -59,7 +61,7 @@ class MaxPositionCount(TradingConstraint):
         self.max_positions = max_positions
         self.renormalize = renormalize
 
-    def apply(self, weights: pl.DataFrame, capital: float):
+    def apply(self, weights: PortfolioWeights, capital: float) -> PortfolioWeights:
         """Keep only the top max_positions by absolute weight, zero out the rest."""
         result = (
             weights
@@ -80,4 +82,4 @@ class MaxPositionCount(TradingConstraint):
                 (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
             )
 
-        return result
+        return PortfolioWeights(result)

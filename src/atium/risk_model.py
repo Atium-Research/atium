@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from atium.data import FactorLoadingsProvider, FactorCovariancesProvider, IdioVolProvider
+from atium.models import FactorLoadings, FactorCovariances, IdioVol
 import datetime as dt
 import numpy as np
-import polars as pl
 
 
 class RiskModel(ABC):
@@ -32,7 +32,7 @@ class FactorRiskModel(RiskModel):
         self.factor_covariances = factor_covariances
         self.idio_vol = idio_vol
 
-    def _build_factor_loadings_matrix(self, factor_loadings: pl.DataFrame) -> np.ndarray:
+    def _build_factor_loadings_matrix(self, factor_loadings: FactorLoadings) -> np.ndarray:
         """Pivot factor loadings into an (n_assets x n_factors) numpy matrix."""
         return (
             factor_loadings.sort("ticker", "factor")
@@ -41,7 +41,7 @@ class FactorRiskModel(RiskModel):
             .to_numpy()
         )
 
-    def _build_factor_covariance_matrix(self, factor_covariances: pl.DataFrame) -> np.ndarray:
+    def _build_factor_covariance_matrix(self, factor_covariances: FactorCovariances) -> np.ndarray:
         """Pivot factor covariances into a symmetric (n_factors x n_factors) numpy matrix."""
         return (
             factor_covariances.sort("factor_1", "factor_2")
@@ -50,7 +50,7 @@ class FactorRiskModel(RiskModel):
             .to_numpy()
         )
 
-    def _build_idio_vol_matrix(self, idio_vol: pl.DataFrame) -> np.ndarray:
+    def _build_idio_vol_matrix(self, idio_vol: IdioVol) -> np.ndarray:
         """Build a diagonal matrix of idiosyncratic volatilities."""
         return np.diag(
             idio_vol.sort("ticker")["idio_vol"]

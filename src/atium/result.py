@@ -1,4 +1,11 @@
 import polars as pl
+from atium.models import (
+    PositionResults,
+    PortfolioReturns,
+    BenchmarkReturns,
+    ActiveReturns,
+    PerformanceSummary,
+)
 
 
 class BacktestResult:
@@ -12,18 +19,18 @@ class BacktestResult:
 
     def __init__(
         self,
-        results: pl.DataFrame,
-        benchmark_returns: pl.DataFrame | None = None,
+        results: PositionResults,
+        benchmark_returns: BenchmarkReturns | None = None,
     ):
         self.results = results
         self.benchmark_returns = benchmark_returns
 
-    def portfolio_returns(self) -> pl.DataFrame:
+    def portfolio_returns(self) -> PortfolioReturns:
         """Aggregate position-level results into daily portfolio returns.
 
         Returns a DataFrame with columns [date, portfolio_value, portfolio_return].
         """
-        return (
+        return PortfolioReturns(
             self.results
             .group_by('date')
             .agg(
@@ -58,7 +65,7 @@ class BacktestResult:
             return 0.0
         return float(std * (252 ** 0.5) * 100)
 
-    def active_returns(self) -> pl.DataFrame:
+    def active_returns(self) -> ActiveReturns:
         """Compute daily active returns (portfolio minus benchmark).
 
         Returns a DataFrame with columns [date, active_return].
@@ -66,7 +73,7 @@ class BacktestResult:
         """
         if self.benchmark_returns is None:
             raise ValueError("No benchmark returns available.")
-        return (
+        return ActiveReturns(
             self.portfolio_returns()
             .join(self.benchmark_returns, on='date', how='inner')
             .with_columns(
@@ -119,7 +126,7 @@ class BacktestResult:
             return 0.0
         return float(dd)
 
-    def summary(self) -> pl.DataFrame:
+    def summary(self) -> PerformanceSummary:
         """Return a single-row DataFrame with key performance metrics.
 
         When benchmark returns are available, includes active return,
@@ -130,13 +137,12 @@ class BacktestResult:
             'annualized_volatility_pct': [self.annualized_volatility()],
             'sharpe_ratio': [self.sharpe_ratio()],
             'max_drawdown_pct': [self.max_drawdown() * 100],
+            'active_return_pct': [self.active_return_annualized() if self.benchmark_returns is not None else None],
+            'tracking_error_pct': [self.tracking_error() if self.benchmark_returns is not None else None],
+            'information_ratio': [self.information_ratio() if self.benchmark_returns is not None else None],
+            'relative_max_drawdown_pct': [self.relative_max_drawdown() * 100 if self.benchmark_returns is not None else None],
         }
-        if self.benchmark_returns is not None:
-            data['active_return_pct'] = [self.active_return_annualized()]
-            data['tracking_error_pct'] = [self.tracking_error()]
-            data['information_ratio'] = [self.information_ratio()]
-            data['relative_max_drawdown_pct'] = [self.relative_max_drawdown() * 100]
-        return pl.DataFrame(data)
+        return PerformanceSummary(pl.DataFrame(data))
 
     def plot_equity_curve(self, path: str = 'equity_curve.png') -> str:
         """Save an equity curve chart to disk and return the file path.

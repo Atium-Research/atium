@@ -7,7 +7,6 @@ from demo_data import (
     MyFactorLoadingsProvider,
     MyIdioVolProvider,
 )
-from atium.types import Alphas, BenchmarkWeights
 from atium.risk_model import FactorRiskModel
 from atium.optimizer import MVO
 from atium.objectives import MaxUtilityWithTargetActiveRisk
@@ -29,8 +28,8 @@ idio_vol_provider = MyIdioVolProvider(db, start, end)
 benchmark_provider = MyBenchmarkWeightsProvider(db, start, end)
 
 # Get alphas and benchmark weights
-alphas = Alphas(alphas_provider.get(end))
-benchmark_weights = BenchmarkWeights(benchmark_provider.get(end)).align_to(alphas.tickers)
+alphas = alphas_provider.get(end)
+benchmark_weights = benchmark_provider.get(end)
 
 # Get covariance matrix
 risk_model = FactorRiskModel(

@@ -1,17 +1,16 @@
 from abc import ABC, abstractmethod
 import datetime as dt
-import polars as pl
 from atium.data import AlphaProvider, BenchmarkWeightsProvider
 from atium.optimizer import MVO
 from atium.risk_model import RiskModel
-from atium.types import Alphas, BenchmarkWeights
+from atium.models import Alphas, BenchmarkWeights, PortfolioWeights
 
 
 class Strategy(ABC):
     """Base class for portfolio construction strategies."""
 
     @abstractmethod
-    def generate_weights(self, date_: dt.date) -> pl.DataFrame:
+    def generate_weights(self, date_: dt.date) -> PortfolioWeights:
         """Return a DataFrame with columns [date, ticker, weight]."""
         pass
 
@@ -35,7 +34,7 @@ class OptimizationStrategy(Strategy):
         self.optimizer = optimizer
         self.benchmark = benchmark
 
-    def generate_weights(self, date_: dt.date) -> pl.DataFrame:
+    def generate_weights(self, date_: dt.date) -> PortfolioWeights:
         """Generate optimized portfolio weights for the given date."""
         alphas = Alphas(self.alphas.get(date_))
         tickers = alphas.tickers

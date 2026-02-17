@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import polars as pl
+from atium.models import PortfolioWeights
 
 
 class CostModel(ABC):
@@ -8,8 +9,8 @@ class CostModel(ABC):
     @abstractmethod
     def compute_costs(
         self,
-        old_weights: pl.DataFrame | None,
-        new_weights: pl.DataFrame,
+        old_weights: PortfolioWeights | None,
+        new_weights: PortfolioWeights,
         capital: float,
     ) -> float:
         """Estimate the dollar cost of rebalancing from old_weights to new_weights.
@@ -27,8 +28,8 @@ class NoCost(CostModel):
 
     def compute_costs(
         self,
-        old_weights: pl.DataFrame | None,
-        new_weights: pl.DataFrame,
+        old_weights: PortfolioWeights | None,
+        new_weights: PortfolioWeights,
         capital: float,
     ) -> float:
         """Return 0.0 (no costs)."""
@@ -49,8 +50,8 @@ class LinearCost(CostModel):
 
     def compute_costs(
         self,
-        old_weights: pl.DataFrame | None,
-        new_weights: pl.DataFrame,
+        old_weights: PortfolioWeights | None,
+        new_weights: PortfolioWeights,
         capital: float,
     ) -> float:
         """Compute linear transaction costs based on weight turnover."""

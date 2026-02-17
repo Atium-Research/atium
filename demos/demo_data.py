@@ -3,6 +3,7 @@ import os
 import datetime as dt
 import bear_lake as bl
 import polars as pl
+from atium.models import Alphas, BenchmarkWeights, Returns, FactorLoadings, FactorCovariances, IdioVol
 
 
 def get_bear_lake_client():
@@ -47,8 +48,8 @@ class MyReturnsProvider:
             .sort('date', 'ticker')
         )
 
-    def get(self, date_: dt.date) -> pl.DataFrame:
-        return self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
+    def get(self, date_: dt.date) -> Returns:
+        return Returns.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
 
 
 class MyAlphaProvider:
@@ -63,8 +64,8 @@ class MyAlphaProvider:
             .sort('date', 'ticker')
         )
 
-    def get(self, date_: dt.date) -> pl.DataFrame:
-        return self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
+    def get(self, date_: dt.date) -> Alphas:
+        return Alphas.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
 
 
 class MyFactorLoadingsProvider:
@@ -79,8 +80,8 @@ class MyFactorLoadingsProvider:
             .sort('date', 'ticker', 'factor')
         )
 
-    def get(self, date_: dt.date) -> pl.DataFrame:
-        return self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker', 'factor')
+    def get(self, date_: dt.date) -> FactorLoadings:
+        return FactorLoadings.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker', 'factor'))
 
 
 class MyFactorCovariancesProvider:
@@ -95,8 +96,8 @@ class MyFactorCovariancesProvider:
             .sort('date', 'factor_1', 'factor_2')
         )
 
-    def get(self, date_: dt.date) -> pl.DataFrame:
-        return self.data.filter(pl.col('date').eq(date_)).sort('date', 'factor_1', 'factor_2')
+    def get(self, date_: dt.date) -> FactorCovariances:
+        return FactorCovariances.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'factor_1', 'factor_2'))
 
 
 class MyIdioVolProvider:
@@ -111,12 +112,12 @@ class MyIdioVolProvider:
             .sort('date', 'ticker')
         )
 
-    def get(self, date_: dt.date) -> pl.DataFrame:
-        return self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
+    def get(self, date_: dt.date) -> IdioVol:
+        return IdioVol.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
 
 
 class MyBenchmarkWeightsProvider:
-    def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> None:
+    def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> BenchmarkWeights:
         self.data = db.query(
             bl.table('benchmark_weights')
             .filter(pl.col('date').is_between(start, end))
@@ -124,5 +125,5 @@ class MyBenchmarkWeightsProvider:
             .sort('date', 'ticker')
         )
 
-    def get(self, date_: dt.date) -> pl.DataFrame:
-        return self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker')
+    def get(self, date_: dt.date) -> BenchmarkWeights:
+        return BenchmarkWeights.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))

@@ -1,4 +1,4 @@
-import polars as pl
+from atium.models import PortfolioWeights
 from atium.trading_constraints import TradingConstraint
 
 
@@ -12,7 +12,7 @@ class TradeGenerator:
     def __init__(self, constraints: list[TradingConstraint]):
         self.constraints = constraints
 
-    def apply(self, weights: pl.DataFrame, capital: float) -> pl.DataFrame:
+    def apply(self, weights: PortfolioWeights, capital: float) -> PortfolioWeights:
         """Apply each trading constraint to the weights and return the result."""
         for constraint in self.constraints:
             weights = constraint.apply(weights, capital=capital)

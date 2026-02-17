@@ -1,5 +1,6 @@
 from typing import Literal
 from atium.data import CalendarProvider, ReturnsProvider, BenchmarkWeightsProvider
+from atium.models import PositionResults, BenchmarkReturns, PortfolioWeights
 from atium.strategy import Strategy
 from atium.trade_generator import TradeGenerator
 from atium.costs import CostModel, NoCost
@@ -74,7 +75,7 @@ class Backtester:
             cost_model = NoCost()
 
         capital = initial_capital
-        holdings: pl.DataFrame | None = None
+        holdings: PortfolioWeights | None = None
         prev_date: dt.date | None = None
         results_list: list[pl.DataFrame] = []
         benchmark_returns_list: list[dict] = []
@@ -110,7 +111,7 @@ class Backtester:
             capital = invested + results['pnl'].sum() + cash
 
             # Compute drifted weights for next day's holdings
-            holdings = (
+            holdings = PortfolioWeights(
                 results
                 .with_columns(
                     ((pl.col('value') + pl.col('pnl')) / capital).alias('weight'),
@@ -136,9 +137,9 @@ class Backtester:
             results_list.append(results)
 
         benchmark_returns = (
-            pl.DataFrame(benchmark_returns_list)
+            BenchmarkReturns(pl.DataFrame(benchmark_returns_list))
             if benchmark_returns_list
             else None
         )
 
-        return BacktestResult(pl.concat(results_list), benchmark_returns)
+        return BacktestResult(PositionResults(pl.concat(results_list)), benchmark_returns)
