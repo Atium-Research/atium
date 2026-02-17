@@ -14,6 +14,7 @@ class RiskModel(ABC):
         pass
 
     @property
+    @abstractmethod
     def tickers(self) -> list[str]:
         pass
 
