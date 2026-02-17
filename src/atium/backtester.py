@@ -1,6 +1,7 @@
 from typing import Literal
 from atium.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
 from atium.strategy import Strategy
+from atium.trade_generator import TradeGenerator
 from atium.costs import CostModel, NoCost
 from atium.result import BacktestResult
 import polars as pl
@@ -48,6 +49,7 @@ class Backtester:
         cost_model: CostModel | None = None,
         rebalance_frequency: RebalanceFrequency = 'daily',
         benchmark: BenchmarkProvider | None = None,
+        trade_generator: TradeGenerator | None = None,
     ) -> BacktestResult:
         """Execute the backtest and return a BacktestResult.
 
@@ -65,6 +67,8 @@ class Backtester:
             benchmark: Optional benchmark provider for benchmark returns.
                 When supplied, BacktestResult will include benchmark-relative
                 analytics.
+            trade_generator: Optional trade generator that applies trading
+                constraints to weights on rebalance dates.
         """
         if cost_model is None:
             cost_model = NoCost()
@@ -80,6 +84,8 @@ class Backtester:
 
             if rebalance:
                 new_weights = strategy.generate_weights(date_, capital)
+                if trade_generator is not None:
+                    new_weights = trade_generator.apply(new_weights, capital)
                 costs = cost_model.compute_costs(holdings, new_weights, capital)
                 capital -= costs
             else:
