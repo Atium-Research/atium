@@ -1,8 +1,8 @@
 from typing import Literal
-from malatium.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
-from malatium.strategy import Strategy
-from malatium.costs import CostModel, NoCost
-from malatium.result import BacktestResult
+from atium.data import CalendarProvider, ReturnsProvider, BenchmarkProvider
+from atium.strategy import Strategy
+from atium.costs import CostModel, NoCost
+from atium.result import BacktestResult
 import polars as pl
 import datetime as dt
 from tqdm import tqdm

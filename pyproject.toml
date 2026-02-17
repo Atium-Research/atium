@@ -1,7 +1,7 @@
 [project]
-name = "malatium"
+name = "atium"
 version = "0.1.2"
-description = "Quant research backtesting tools."
+description = "Atium Research quant research tools."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -10,6 +10,4 @@ dependencies = [
     "numpy>=2.4.2",
     "polars>=1.38.1",
     "tqdm>=4.67.3",
-    "matplotlib>=3.10.8",
-    "seaborn>=0.13.2",
 ]

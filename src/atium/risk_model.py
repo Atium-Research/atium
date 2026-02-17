@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from malatium.data import FactorLoadingsProvider, FactorCovariancesProvider, IdioVolProvider
+from atium.data import FactorLoadingsProvider, FactorCovariancesProvider, IdioVolProvider
 import datetime as dt
 import numpy as np
 import polars as pl

@@ -3,11 +3,11 @@ import datetime as dt
 import polars as pl
 import cvxpy as cp
 import numpy as np
-from malatium.data import AlphaProvider, BenchmarkProvider
-from malatium.objectives import Objective
-from malatium.optimizer_constraints import OptimizerConstraint
-from malatium.trading_constraints import TradingConstraint
-from malatium.risk_model import RiskModel
+from atium.data import AlphaProvider, BenchmarkProvider
+from atium.objectives import Objective
+from atium.optimizer_constraints import OptimizerConstraint
+from atium.trading_constraints import TradingConstraint
+from atium.risk_model import RiskModel
 
 
 class Strategy(ABC):
