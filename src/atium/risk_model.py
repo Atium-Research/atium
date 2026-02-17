@@ -9,8 +9,8 @@ class RiskModel(ABC):
     """Base class for covariance matrix estimation."""
 
     @abstractmethod
-    def build_covariance_matrix(self, date_: dt.date, tickers: list[str]) -> np.ndarray:
-        """Build and return the asset covariance matrix for the given date and tickers."""
+    def build_covariance_matrix(self, date_: dt.date) -> np.ndarray:
+        """Build and return the asset covariance matrix for the given date."""
         pass
 
 
@@ -32,11 +32,10 @@ class FactorRiskModel(RiskModel):
         self.factor_covariances = factor_covariances
         self.idio_vol = idio_vol
 
-    def _build_factor_loadings_matrix(self, factor_loadings: pl.DataFrame, tickers: list[str]) -> np.ndarray:
+    def _build_factor_loadings_matrix(self, factor_loadings: pl.DataFrame) -> np.ndarray:
         """Pivot factor loadings into an (n_assets x n_factors) numpy matrix."""
         return (
-            factor_loadings.filter(pl.col("ticker").is_in(tickers))
-            .sort("ticker", "factor")
+            factor_loadings.sort("ticker", "factor")
             .pivot(index="ticker", on="factor", values="loading")
             .drop("ticker")
             .to_numpy()
@@ -51,22 +50,28 @@ class FactorRiskModel(RiskModel):
             .to_numpy()
         )
 
-    def _build_idio_vol_matrix(self, idio_vol: pl.DataFrame, tickers: list[str]) -> np.ndarray:
+    def _build_idio_vol_matrix(self, idio_vol: pl.DataFrame) -> np.ndarray:
         """Build a diagonal matrix of idiosyncratic volatilities."""
         return np.diag(
-            idio_vol.filter(pl.col("ticker").is_in(tickers))
-            .sort("ticker")["idio_vol"]
+            idio_vol.sort("ticker")["idio_vol"]
             .to_numpy()
         )
 
-    def build_covariance_matrix(self, date_: dt.date, tickers: list[str]) -> np.ndarray:
+    def build_covariance_matrix(self, date_: dt.date) -> np.ndarray:
         """Compute the full covariance matrix as X @ F @ X.T + D^2."""
         factor_loadings = self.factor_loadings.get(date_)
         factor_covariances = self.factor_covariances.get(date_)
         idio_vol = self.idio_vol.get(date_)
 
-        X = self._build_factor_loadings_matrix(factor_loadings, tickers)
+        available_tickers = sorted(
+            set(factor_loadings["ticker"]) & set(idio_vol["ticker"])
+        )
+
+        factor_loadings = factor_loadings.filter(pl.col("ticker").is_in(available_tickers))
+        idio_vol = idio_vol.filter(pl.col("ticker").is_in(available_tickers))
+
+        X = self._build_factor_loadings_matrix(factor_loadings)
         F = self._build_factor_covariance_matrix(factor_covariances)
-        D = self._build_idio_vol_matrix(idio_vol, tickers)
+        D = self._build_idio_vol_matrix(idio_vol)
 
         return X @ F @ X.T + D ** 2

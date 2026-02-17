@@ -38,7 +38,7 @@ risk_model = FactorRiskModel(
     factor_covariances=factor_covariances_provider,
     idio_vol=idio_vol_provider
 )
-covariance_matrix = risk_model.build_covariance_matrix(end, alphas.tickers)
+covariance_matrix = risk_model.build_covariance_matrix(end)
 
 # Find optimal weights
 optimizer = MVO(

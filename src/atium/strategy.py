@@ -11,7 +11,7 @@ class Strategy(ABC):
     """Base class for portfolio construction strategies."""
 
     @abstractmethod
-    def generate_weights(self, date_: dt.date, capital: float) -> pl.DataFrame:
+    def generate_weights(self, date_: dt.date) -> pl.DataFrame:
         """Return a DataFrame with columns [date, ticker, weight]."""
         pass
 
@@ -35,11 +35,11 @@ class OptimizationStrategy(Strategy):
         self.optimizer = optimizer
         self.benchmark = benchmark
 
-    def generate_weights(self, date_: dt.date, capital: float) -> pl.DataFrame:
-        """Generate optimized portfolio weights for the given date and capital."""
+    def generate_weights(self, date_: dt.date) -> pl.DataFrame:
+        """Generate optimized portfolio weights for the given date."""
         alphas = Alphas(self.alphas.get(date_))
         tickers = alphas.tickers
-        covariance_matrix = self.risk_model.build_covariance_matrix(date_, tickers)
+        covariance_matrix = self.risk_model.build_covariance_matrix(date_)
 
         benchmark_weights = None
         if self.benchmark is not None:

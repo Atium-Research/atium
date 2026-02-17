@@ -83,7 +83,7 @@ class Backtester:
             rebalance = self._is_rebalance_date(date_, prev_date, rebalance_frequency)
 
             if rebalance:
-                new_weights = strategy.generate_weights(date_, capital)
+                new_weights = strategy.generate_weights(date_)
                 if trade_generator is not None:
                     new_weights = trade_generator.apply(new_weights, capital)
                 costs = cost_model.compute_costs(holdings, new_weights, capital)
