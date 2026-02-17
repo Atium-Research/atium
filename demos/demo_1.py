@@ -31,13 +31,12 @@ benchmark_provider = MyBenchmarkWeightsProvider(db, start, end)
 alphas = alphas_provider.get(end)
 benchmark_weights = benchmark_provider.get(end)
 
-# Get covariance matrix
+# Define risk model
 risk_model = FactorRiskModel(
-    factor_loadings=factor_loadings_provider,
-    factor_covariances=factor_covariances_provider,
-    idio_vol=idio_vol_provider
+    factor_loadings=factor_loadings_provider.get(end),
+    factor_covariances=factor_covariances_provider.get(end),
+    idio_vol=idio_vol_provider.get(end)
 )
-covariance_matrix = risk_model.build_covariance_matrix(end)
 
 # Find optimal weights
 optimizer = MVO(
@@ -47,7 +46,7 @@ optimizer = MVO(
 weights = optimizer.optimize(
     date_=end,
     alphas=alphas,
-    covariance_matrix=covariance_matrix,
+    risk_model=risk_model,
     benchmark_weights=benchmark_weights
 )
 

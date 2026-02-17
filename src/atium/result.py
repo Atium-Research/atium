@@ -30,7 +30,7 @@ class BacktestResult:
 
         Returns a DataFrame with columns [date, portfolio_value, portfolio_return].
         """
-        return PortfolioReturns(
+        return PortfolioReturns.validate(
             self.results
             .group_by('date')
             .agg(
@@ -73,7 +73,7 @@ class BacktestResult:
         """
         if self.benchmark_returns is None:
             raise ValueError("No benchmark returns available.")
-        return ActiveReturns(
+        return ActiveReturns.validate(
             self.portfolio_returns()
             .join(self.benchmark_returns, on='date', how='inner')
             .with_columns(
@@ -142,7 +142,7 @@ class BacktestResult:
             'information_ratio': [self.information_ratio() if self.benchmark_returns is not None else None],
             'relative_max_drawdown_pct': [self.relative_max_drawdown() * 100 if self.benchmark_returns is not None else None],
         }
-        return PerformanceSummary(pl.DataFrame(data))
+        return PerformanceSummary.validate(pl.DataFrame(data))
 
     def plot_equity_curve(self, path: str = 'equity_curve.png') -> str:
         """Save an equity curve chart to disk and return the file path.

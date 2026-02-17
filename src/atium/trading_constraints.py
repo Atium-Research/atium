@@ -46,7 +46,7 @@ class MinPositionSize(TradingConstraint):
                 (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
             )
 
-        return PortfolioWeights(result)
+        return PortfolioWeights.validate(result)
 
 
 class MaxPositionCount(TradingConstraint):
@@ -82,4 +82,4 @@ class MaxPositionCount(TradingConstraint):
                 (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
             )
 
-        return PortfolioWeights(result)
+        return PortfolioWeights.validate(result)

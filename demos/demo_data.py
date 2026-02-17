@@ -43,7 +43,10 @@ class MyReturnsProvider:
             bl.table('stock_returns')
             .sort('ticker', 'date')
             .with_columns(pl.col('return').shift(-1).over('ticker'))
-            .filter(pl.col('date').is_between(start, end))
+            .filter(
+                pl.col('date').is_between(start, end),
+                pl.col('return').is_not_null()
+            )
             .drop('year')
             .sort('date', 'ticker')
         )
@@ -55,12 +58,18 @@ class MyReturnsProvider:
 class MyAlphaProvider:
     def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> None:
         self.data = db.query(
-            bl.table('alphas')
+            bl.table('universe')
+            .join(
+                other=bl.table('alphas'),
+                on=['date', 'ticker'],
+                how='left'
+            )
+            .with_columns(pl.col('alpha').fill_null(0))
             .filter(
                 pl.col('date').is_between(start, end),
                 pl.col('alpha').is_not_null()
             )
-            .drop('year')
+            .drop('year', 'signal')
             .sort('date', 'ticker')
         )
 
@@ -71,7 +80,12 @@ class MyAlphaProvider:
 class MyFactorLoadingsProvider:
     def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> None:
         self.data = db.query(
-            bl.table('factor_loadings')
+            bl.table('universe')
+            .join(
+                other=bl.table('factor_loadings'),
+                on=['date', 'ticker'],
+                how='left'
+            )
             .filter(
                 pl.col('date').is_between(start, end),
                 pl.col('loading').is_not_null()
@@ -103,7 +117,12 @@ class MyFactorCovariancesProvider:
 class MyIdioVolProvider:
     def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> None:
         self.data = db.query(
-            bl.table('idio_vol')
+            bl.table('universe')
+            .join(
+                other=bl.table('idio_vol'),
+                on=['date', 'ticker'],
+                how='left'
+            )
             .filter(
                 pl.col('date').is_between(start, end),
                 pl.col('idio_vol').is_not_null()

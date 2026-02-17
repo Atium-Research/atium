@@ -9,7 +9,7 @@ from demo_data import (
     MyIdioVolProvider,
     MyReturnsProvider
 )
-from atium.risk_model import FactorRiskModel
+from atium.risk_model import FactorRiskModelConstructor
 from atium.optimizer import MVO
 from atium.objectives import MaxUtilityWithTargetActiveRisk
 from atium.optimizer_constraints import LongOnly, FullyInvested
@@ -36,7 +36,7 @@ returns_provider = MyReturnsProvider(db, start, end)
 
 
 # Define risk model
-risk_model = FactorRiskModel(
+risk_model_constructor = FactorRiskModelConstructor(
     factor_loadings=factor_loadings_provider,
     factor_covariances=factor_covariances_provider,
     idio_vol=idio_vol_provider
@@ -50,10 +50,10 @@ optimizer = MVO(
 
 # Define strategy
 strategy = OptimizationStrategy(
-    alphas=alphas_provider,
-    risk_model=risk_model,
+    alpha_provider=alphas_provider,
+    risk_model_constructor=risk_model_constructor,
     optimizer=optimizer,
-    benchmark=benchmark_provider
+    benchmark_weights_provider=benchmark_provider
 )
 
 # Define transaction cost model

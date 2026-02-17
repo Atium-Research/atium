@@ -4,7 +4,6 @@ import dataframely as dy
 class Alphas(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
-    signal = dy.String()
     alpha = dy.Float()
 
 

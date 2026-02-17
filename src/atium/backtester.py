@@ -111,7 +111,7 @@ class Backtester:
             capital = invested + results['pnl'].sum() + cash
 
             # Compute drifted weights for next day's holdings
-            holdings = PortfolioWeights(
+            holdings = PortfolioWeights.validate(
                 results
                 .with_columns(
                     ((pl.col('value') + pl.col('pnl')) / capital).alias('weight'),
@@ -137,9 +137,9 @@ class Backtester:
             results_list.append(results)
 
         benchmark_returns = (
-            BenchmarkReturns(pl.DataFrame(benchmark_returns_list))
+            BenchmarkReturns.validate(pl.DataFrame(benchmark_returns_list))
             if benchmark_returns_list
             else None
         )
 
-        return BacktestResult(PositionResults(pl.concat(results_list)), benchmark_returns)
+        return BacktestResult(PositionResults.validate(pl.concat(results_list)), benchmark_returns)

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import datetime as dt
 from atium.data import AlphaProvider, BenchmarkWeightsProvider
 from atium.optimizer import MVO
-from atium.risk_model import RiskModel
+from atium.risk_model import RiskModelConstructor
 from atium.models import Alphas, BenchmarkWeights, PortfolioWeights
 
 
@@ -24,24 +24,28 @@ class OptimizationStrategy(Strategy):
 
     def __init__(
         self,
-        alphas: AlphaProvider,
-        risk_model: RiskModel,
+        alpha_provider: AlphaProvider,
+        risk_model_constructor: RiskModelConstructor,
         optimizer: MVO,
-        benchmark: BenchmarkWeightsProvider | None = None,
+        benchmark_weights_provider: BenchmarkWeightsProvider | None = None,
     ):
-        self.alphas = alphas
-        self.risk_model = risk_model
+        self.alpha_provider = alpha_provider
+        self.risk_model_constructor = risk_model_constructor
         self.optimizer = optimizer
-        self.benchmark = benchmark
+        self.benchmark_weights_provider = benchmark_weights_provider
 
     def generate_weights(self, date_: dt.date) -> PortfolioWeights:
         """Generate optimized portfolio weights for the given date."""
-        alphas = Alphas(self.alphas.get(date_))
-        tickers = alphas.tickers
-        covariance_matrix = self.risk_model.build_covariance_matrix(date_)
+        alphas = self.alpha_provider.get(date_)
+        risk_model = self.risk_model_constructor.get_risk_model(date_)
 
         benchmark_weights = None
-        if self.benchmark is not None:
-            benchmark_weights = BenchmarkWeights(self.benchmark.get(date_)).align_to(tickers)
+        if self.benchmark_weights_provider is not None:
+            benchmark_weights = self.benchmark_weights_provider.get(date_)
 
-        return self.optimizer.optimize(date_, alphas, covariance_matrix, benchmark_weights)
+        return self.optimizer.optimize(
+            date_=date_, 
+            alphas=alphas, 
+            risk_model=risk_model, 
+            benchmark_weights=benchmark_weights
+        )
