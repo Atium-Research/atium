@@ -1,11 +1,11 @@
-import os
-import bear_lake as bl
-from data import (
-    MyBenchmarkWeightsProvider, 
-    MyAlphaProvider, 
-    MyFactorCovariancesProvider, 
-    MyFactorLoadingsProvider, 
-    MyIdioVolProvider, 
+"""Single-date portfolio optimization with trading constraints."""
+from demo_data import (
+    get_bear_lake_client,
+    MyBenchmarkWeightsProvider,
+    MyAlphaProvider,
+    MyFactorCovariancesProvider,
+    MyFactorLoadingsProvider,
+    MyIdioVolProvider,
 )
 from atium.types import Alphas, BenchmarkWeights
 from atium.risk_model import FactorRiskModel
@@ -15,25 +15,6 @@ from atium.optimizer_constraints import LongOnly, FullyInvested
 from atium.trade_generator import TradeGenerator
 from atium.trading_constraints import MaxPositionCount, MinPositionSize
 import datetime as dt
-
-# Data connection
-def get_bear_lake_client():
-    access_key_id = os.getenv("ACCESS_KEY_ID")
-    secret_access_key = os.getenv("SECRET_ACCESS_KEY")
-    region = os.getenv("REGION")
-    endpoint = os.getenv("ENDPOINT")
-    bucket = os.getenv("BUCKET")
-
-    storage_options = {
-        "aws_access_key_id": access_key_id,
-        "aws_secret_access_key": secret_access_key,
-        "region": region,
-        "endpoint_url": endpoint,
-    }
-
-    url = f"s3://{bucket}"
-
-    return bl.connect_s3(path=url, storage_options=storage_options)
 
 # Parameters
 db = get_bear_lake_client()
