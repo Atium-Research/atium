@@ -27,10 +27,6 @@ factor_covariances_provider = MyFactorCovariancesProvider(db, start, end)
 idio_vol_provider = MyIdioVolProvider(db, start, end)
 benchmark_provider = MyBenchmarkWeightsProvider(db, start, end)
 
-# Get alphas and benchmark weights
-alphas = alphas_provider.get(end)
-benchmark_weights = benchmark_provider.get(end)
-
 # Define risk model
 risk_model = FactorRiskModel(
     factor_loadings=factor_loadings_provider.get(end),
@@ -45,9 +41,9 @@ optimizer = MVO(
 )
 weights = optimizer.optimize(
     date_=end,
-    alphas=alphas,
+    alphas=alphas_provider.get(end),
+    benchmark_weights=benchmark_provider.get(end),
     risk_model=risk_model,
-    benchmark_weights=benchmark_weights
 )
 
 # Apply trading constraints

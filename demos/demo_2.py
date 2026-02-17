@@ -51,9 +51,9 @@ optimizer = MVO(
 # Define strategy
 strategy = OptimizationStrategy(
     alpha_provider=alphas_provider,
+    benchmark_weights_provider=benchmark_provider,
     risk_model_constructor=risk_model_constructor,
     optimizer=optimizer,
-    benchmark_weights_provider=benchmark_provider
 )
 
 # Define transaction cost model
@@ -67,15 +67,15 @@ trade_generator = TradeGenerator(
 # Run backtest
 backtester = Backtester()
 results = backtester.run(
-    calendar=calendar_provider,
-    returns=returns_provider,
-    strategy=strategy,
     start=start,
     end=end,
-    initial_capital=100_000,
-    cost_model=cost_model,
     rebalance_frequency='weekly',
+    initial_capital=100_000,
+    calendar=calendar_provider,
+    returns=returns_provider,
     benchmark=benchmark_provider,
+    strategy=strategy,
+    cost_model=cost_model,
     trade_generator=trade_generator
 )
 
