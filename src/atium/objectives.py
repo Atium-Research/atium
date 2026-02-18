@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 import cvxpy as cp
 import numpy as np
 

@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+
 import polars as pl
-from atium.models import PortfolioWeights
+
+from atium.schemas import PortfolioWeightsSchema
+from atium.types import PortfolioWeights
 
 
 class TradingConstraint(ABC):
@@ -46,7 +49,7 @@ class MinPositionSize(TradingConstraint):
                 (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
             )
 
-        return PortfolioWeights.validate(result)
+        return PortfolioWeightsSchema.validate(result)
 
 
 class MaxPositionCount(TradingConstraint):
@@ -82,4 +85,4 @@ class MaxPositionCount(TradingConstraint):
                 (pl.col('weight') / pl.col('weight').sum().over('date')).alias('weight')
             )
 
-        return PortfolioWeights.validate(result)
+        return PortfolioWeightsSchema.validate(result)

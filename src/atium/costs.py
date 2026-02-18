@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+
 import polars as pl
-from atium.models import PortfolioWeights
+
+from atium.types import PortfolioWeights
 
 
 class CostModel(ABC):

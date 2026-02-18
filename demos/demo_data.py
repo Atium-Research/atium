@@ -1,9 +1,15 @@
 """Data providers for connecting to Bear Lake and loading market data."""
-import os
 import datetime as dt
+import os
+
 import bear_lake as bl
 import polars as pl
-from atium.models import Alphas, BenchmarkWeights, Returns, FactorLoadings, FactorCovariances, IdioVol
+
+from atium.schemas import (AlphasSchema, BenchmarkWeightsSchema,
+                           FactorCovariancesSchema, FactorLoadingsSchema,
+                           IdioVolSchema, ReturnsSchema)
+from atium.types import (Alphas, BenchmarkWeights, FactorCovariances,
+                         FactorLoadings, IdioVol, Returns)
 
 
 def get_bear_lake_client():
@@ -52,7 +58,7 @@ class MyReturnsProvider:
         )
 
     def get(self, date_: dt.date) -> Returns:
-        return Returns.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
+        return ReturnsSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
 
 
 class MyAlphaProvider:
@@ -73,8 +79,14 @@ class MyAlphaProvider:
             .sort('date', 'ticker')
         )
 
+    @classmethod
+    def from_df(cls, df: Alphas) -> 'MyAlphaProvider':
+        instance = cls.__new__(cls)
+        instance.data = df
+        return instance
+
     def get(self, date_: dt.date) -> Alphas:
-        return Alphas.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
+        return AlphasSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
 
 
 class MyFactorLoadingsProvider:
@@ -95,7 +107,7 @@ class MyFactorLoadingsProvider:
         )
 
     def get(self, date_: dt.date) -> FactorLoadings:
-        return FactorLoadings.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker', 'factor'))
+        return FactorLoadingsSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker', 'factor'))
 
 
 class MyFactorCovariancesProvider:
@@ -111,7 +123,7 @@ class MyFactorCovariancesProvider:
         )
 
     def get(self, date_: dt.date) -> FactorCovariances:
-        return FactorCovariances.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'factor_1', 'factor_2'))
+        return FactorCovariancesSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'factor_1', 'factor_2'))
 
 
 class MyIdioVolProvider:
@@ -132,7 +144,7 @@ class MyIdioVolProvider:
         )
 
     def get(self, date_: dt.date) -> IdioVol:
-        return IdioVol.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
+        return IdioVolSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
 
 
 class MyBenchmarkWeightsProvider:
@@ -145,4 +157,4 @@ class MyBenchmarkWeightsProvider:
         )
 
     def get(self, date_: dt.date) -> BenchmarkWeights:
-        return BenchmarkWeights.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
+        return BenchmarkWeightsSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))

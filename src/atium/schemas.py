@@ -1,51 +1,68 @@
 import dataframely as dy
 
 
-class Alphas(dy.Schema):
+class SignalsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
-    alpha = dy.Float()
+    signal = dy.Float(nullable=True)
 
 
-class BenchmarkWeights(dy.Schema):
+class ScoresSchema(dy.Schema):
+    date = dy.Date()
+    ticker = dy.String()
+    score = dy.Float(nullable=True)
+
+
+class AlphasSchema(dy.Schema):
+    date = dy.Date()
+    ticker = dy.String()
+    alpha = dy.Float(nullable=True)
+
+
+class UniverseSchema(dy.Schema):
+    date = dy.Date()
+    ticker = dy.String()
+
+
+class BenchmarkWeightsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
     weight = dy.Float()
 
 
-class Returns(dy.Schema):
+class ReturnsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
     return_ = dy.Float(alias="return")
 
 
-class FactorLoadings(dy.Schema):
+class FactorLoadingsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
     factor = dy.String()
     loading = dy.Float()
 
 
-class FactorCovariances(dy.Schema):
+class FactorCovariancesSchema(dy.Schema):
     date = dy.Date()
     factor_1 = dy.String()
     factor_2 = dy.String()
     covariance = dy.Float()
 
 
-class IdioVol(dy.Schema):
+class IdioVolSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
     idio_vol = dy.Float()
 
 
-class PortfolioWeights(dy.Schema):
+class PortfolioWeightsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
     weight = dy.Float()
 
 
-class PositionResults(dy.Schema):
+class PositionResultsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()
     weight = dy.Float()
@@ -54,23 +71,23 @@ class PositionResults(dy.Schema):
     pnl = dy.Float()
 
 
-class PortfolioReturns(dy.Schema):
+class PortfolioReturnsSchema(dy.Schema):
     date = dy.Date()
     portfolio_value = dy.Float()
     portfolio_return = dy.Float()
 
 
-class BenchmarkReturns(dy.Schema):
+class BenchmarkReturnsSchema(dy.Schema):
     date = dy.Date()
     benchmark_return = dy.Float()
 
 
-class ActiveReturns(dy.Schema):
+class ActiveReturnsSchema(dy.Schema):
     date = dy.Date()
     active_return = dy.Float()
 
 
-class PerformanceSummary(dy.Schema):
+class PerformanceSummarySchema(dy.Schema):
     annualized_return_pct = dy.Float()
     annualized_volatility_pct = dy.Float()
     sharpe_ratio = dy.Float()

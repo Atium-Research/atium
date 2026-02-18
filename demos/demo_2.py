@@ -1,24 +1,20 @@
 """Full backtest with weekly rebalancing and transaction costs."""
-from demo_data import (
-    get_bear_lake_client,
-    MyCalendarProvider,
-    MyBenchmarkWeightsProvider,
-    MyAlphaProvider,
-    MyFactorCovariancesProvider,
-    MyFactorLoadingsProvider,
-    MyIdioVolProvider,
-    MyReturnsProvider
-)
-from atium.risk_model import FactorRiskModelConstructor
-from atium.optimizer import MVO
+import datetime as dt
+
+from demo_data import (MyAlphaProvider, MyBenchmarkWeightsProvider,
+                       MyCalendarProvider, MyFactorCovariancesProvider,
+                       MyFactorLoadingsProvider, MyIdioVolProvider,
+                       MyReturnsProvider, get_bear_lake_client)
+
+from atium.backtester import Backtester
+from atium.costs import LinearCost
 from atium.objectives import MaxUtilityWithTargetActiveRisk
-from atium.optimizer_constraints import LongOnly, FullyInvested
+from atium.optimizer import MVO
+from atium.optimizer_constraints import FullyInvested, LongOnly
+from atium.risk_model import FactorRiskModelConstructor
+from atium.strategy import OptimizationStrategy
 from atium.trade_generator import TradeGenerator
 from atium.trading_constraints import MaxPositionCount, MinPositionSize
-from atium.backtester import Backtester
-from atium.strategy import OptimizationStrategy
-from atium.costs import LinearCost
-import datetime as dt
 
 # Parameters
 db = get_bear_lake_client()

@@ -1,13 +1,18 @@
+import datetime as dt
 from typing import Literal
-from atium.data import CalendarProvider, ReturnsProvider, BenchmarkWeightsProvider
-from atium.models import PositionResults, BenchmarkReturns, PortfolioWeights
+
+import polars as pl
+from tqdm import tqdm
+
+from atium.costs import CostModel, NoCost
+from atium.data import (BenchmarkWeightsProvider, CalendarProvider,
+                        ReturnsProvider)
+from atium.result import BacktestResult
+from atium.schemas import (BenchmarkReturnsSchema, PortfolioWeightsSchema,
+                           PositionResultsSchema)
 from atium.strategy import Strategy
 from atium.trade_generator import TradeGenerator
-from atium.costs import CostModel, NoCost
-from atium.result import BacktestResult
-import polars as pl
-import datetime as dt
-from tqdm import tqdm
+from atium.types import PortfolioWeights
 
 RebalanceFrequency = Literal['daily', 'weekly', 'monthly']
 
@@ -111,7 +116,7 @@ class Backtester:
             capital = invested + results['pnl'].sum() + cash
 
             # Compute drifted weights for next day's holdings
-            holdings = PortfolioWeights.validate(
+            holdings = PortfolioWeightsSchema.validate(
                 results
                 .with_columns(
                     ((pl.col('value') + pl.col('pnl')) / capital).alias('weight'),
@@ -137,9 +142,9 @@ class Backtester:
             results_list.append(results)
 
         benchmark_returns = (
-            BenchmarkReturns.validate(pl.DataFrame(benchmark_returns_list))
+            BenchmarkReturnsSchema.validate(pl.DataFrame(benchmark_returns_list))
             if benchmark_returns_list
             else None
         )
 
-        return BacktestResult(PositionResults.validate(pl.concat(results_list)), benchmark_returns)
+        return BacktestResult(PositionResultsSchema.validate(pl.concat(results_list)), benchmark_returns)

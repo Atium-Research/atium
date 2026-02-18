@@ -1,19 +1,16 @@
 """Single-date portfolio optimization with trading constraints."""
-from demo_data import (
-    get_bear_lake_client,
-    MyBenchmarkWeightsProvider,
-    MyAlphaProvider,
-    MyFactorCovariancesProvider,
-    MyFactorLoadingsProvider,
-    MyIdioVolProvider,
-)
-from atium.risk_model import FactorRiskModel
-from atium.optimizer import MVO
+import datetime as dt
+
+from demo_data import (MyAlphaProvider, MyBenchmarkWeightsProvider,
+                       MyFactorCovariancesProvider, MyFactorLoadingsProvider,
+                       MyIdioVolProvider, get_bear_lake_client)
+
 from atium.objectives import MaxUtilityWithTargetActiveRisk
-from atium.optimizer_constraints import LongOnly, FullyInvested
+from atium.optimizer import MVO
+from atium.optimizer_constraints import FullyInvested, LongOnly
+from atium.risk_model import FactorRiskModel
 from atium.trade_generator import TradeGenerator
 from atium.trading_constraints import MaxPositionCount, MinPositionSize
-import datetime as dt
 
 # Parameters
 db = get_bear_lake_client()

@@ -1,9 +1,13 @@
-from abc import ABC, abstractmethod
-from atium.data import FactorLoadingsProvider, FactorCovariancesProvider, IdioVolProvider
-from atium.models import FactorLoadings, FactorCovariances, IdioVol
 import datetime as dt
+from abc import ABC, abstractmethod
+
 import numpy as np
 import polars as pl
+
+from atium.data import (FactorCovariancesProvider, FactorLoadingsProvider,
+                        IdioVolProvider)
+from atium.types import FactorCovariances, FactorLoadings, IdioVol
+
 
 class RiskModel(ABC):
     """Base class for covariance matrix estimation."""

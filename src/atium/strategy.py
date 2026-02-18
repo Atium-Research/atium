@@ -1,9 +1,10 @@
-from abc import ABC, abstractmethod
 import datetime as dt
+from abc import ABC, abstractmethod
+
 from atium.data import AlphaProvider, BenchmarkWeightsProvider
 from atium.optimizer import MVO
 from atium.risk_model import RiskModelConstructor
-from atium.models import Alphas, BenchmarkWeights, PortfolioWeights
+from atium.types import PortfolioWeights
 
 
 class Strategy(ABC):

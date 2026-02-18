@@ -1,5 +1,5 @@
-from atium.models import PortfolioWeights
 from atium.trading_constraints import TradingConstraint
+from atium.types import PortfolioWeights
 
 
 class TradeGenerator:

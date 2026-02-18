@@ -1,11 +1,13 @@
 import datetime as dt
+
 import cvxpy as cp
-import numpy as np
 import polars as pl
+
 from atium.objectives import Objective
 from atium.optimizer_constraints import OptimizerConstraint
-from atium.models import Alphas, BenchmarkWeights, PortfolioWeights
 from atium.risk_model import RiskModel
+from atium.schemas import PortfolioWeightsSchema
+from atium.types import Alphas, BenchmarkWeights, PortfolioWeights
 
 
 class MVO:
@@ -63,13 +65,13 @@ class MVO:
         problem.solve()
 
         if problem.status not in ('optimal', 'optimal_inaccurate'):
-            return PortfolioWeights.validate(pl.DataFrame({
+            return PortfolioWeightsSchema.validate(pl.DataFrame({
                 'date': [date_] * n_assets,
                 'ticker': tickers,
                 'weight': [0.0] * n_assets,
             }))
 
-        return PortfolioWeights.validate(pl.DataFrame({
+        return PortfolioWeightsSchema.validate(pl.DataFrame({
             'date': [date_] * n_assets,
             'ticker': tickers,
             'weight': weights.value,

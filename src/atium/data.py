@@ -1,7 +1,8 @@
-from typing import Protocol
 import datetime as dt
+from typing import Protocol
 
-from atium.models import Alphas, BenchmarkWeights, Returns, FactorLoadings, FactorCovariances, IdioVol
+from atium.types import (Alphas, BenchmarkWeights, FactorCovariances,
+                         FactorLoadings, IdioVol, Returns)
 
 
 class CalendarProvider(Protocol):
