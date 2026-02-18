@@ -80,9 +80,9 @@ class MyAlphaProvider:
         )
 
     @classmethod
-    def from_df(cls, df: Alphas) -> 'MyAlphaProvider':
+    def from_df(cls, alphas: Alphas) -> 'MyAlphaProvider':
         instance = cls.__new__(cls)
-        instance.data = df
+        instance.data = alphas
         return instance
 
     def get(self, date_: dt.date) -> Alphas:

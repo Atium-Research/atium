@@ -5,7 +5,7 @@ from atium.schemas import AlphasSchema, ScoresSchema
 from atium.types import IdioVol, Scores, Signals, Universe
 
 
-def compute_scores(signals: Signals, name: str) -> Scores:
+def compute_scores(signals: Signals) -> Scores:
     return ScoresSchema.validate(
         signals
         .with_columns(
@@ -14,12 +14,11 @@ def compute_scores(signals: Signals, name: str) -> Scores:
             .truediv(pl.col('signal').std())
             .over('date')
             .alias('score'),
-            pl.lit(name).alias('name')
         )
-        .select('date', 'ticker', 'name', 'score')
+        .select('date', 'ticker', 'score')
     )
 
-def compute_alphas(universe: Universe, scores: Scores, idio_vol: IdioVol, name: str) -> dy.DataFrame[AlphasSchema]:
+def compute_alphas(universe: Universe, scores: Scores, idio_vol: IdioVol) -> dy.DataFrame[AlphasSchema]:
     return AlphasSchema.validate(
         universe
         .join(scores, on=['date', 'ticker'], how='left')
@@ -30,7 +29,6 @@ def compute_alphas(universe: Universe, scores: Scores, idio_vol: IdioVol, name: 
             .mul(pl.col('idio_vol'))
             .fill_null(0)
             .alias('alpha'),
-            pl.lit(name).alias('name')
         )
-        .select('date', 'ticker', 'name', 'alpha')
+        .select('date', 'ticker', 'alpha')
     )

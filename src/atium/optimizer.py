@@ -43,7 +43,13 @@ class MVO:
         tickers = risk_model.tickers
 
         # Filter alphas
-        alphas_np = alphas.filter(pl.col('ticker').is_in(tickers)).sort('ticker')['alpha'].to_numpy()
+        alphas_np = (
+            pl.DataFrame({'ticker': tickers})
+            .join(alphas.select(['ticker', 'alpha']), on='ticker', how='left')
+            .fill_null(0.0)
+            .sort('ticker')['alpha']
+            .to_numpy()
+        )
 
         # Filter benchmark weights
         if benchmark_weights is not None:
