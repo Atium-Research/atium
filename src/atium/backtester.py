@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Literal
+from typing import Literal, TypeAlias
 
 import polars as pl
 from tqdm import tqdm
@@ -14,9 +14,6 @@ from atium.strategy import Strategy
 from atium.trade_generator import TradeGenerator
 from atium.types import PortfolioWeights
 
-RebalanceFrequency = Literal['daily', 'weekly', 'monthly']
-
-
 class Backtester:
     """Engine that runs a strategy over historical data and tracks portfolio performance.
 
@@ -29,7 +26,7 @@ class Backtester:
         self,
         date_: dt.date,
         prev_date: dt.date | None,
-        frequency: RebalanceFrequency,
+        frequency: Literal['daily', 'weekly', 'monthly'],
     ) -> bool:
         """Return True if the portfolio should be rebalanced on this date."""
         if prev_date is None:
@@ -46,15 +43,15 @@ class Backtester:
 
     def run(
         self,
-        calendar: CalendarProvider,
-        returns: ReturnsProvider,
+        calendar_provider: CalendarProvider,
+        returns_provider: ReturnsProvider,
         strategy: Strategy,
         start: dt.date,
         end: dt.date,
         initial_capital: float,
         cost_model: CostModel | None = None,
-        rebalance_frequency: RebalanceFrequency = 'daily',
-        benchmark: BenchmarkWeightsProvider | None = None,
+        rebalance_frequency: Literal['daily', 'weekly', 'monthly'] = 'daily',
+        benchmark_weights_provider: BenchmarkWeightsProvider | None = None,
         trade_generator: TradeGenerator | None = None,
     ) -> BacktestResult:
         """Execute the backtest and return a BacktestResult.
@@ -81,28 +78,33 @@ class Backtester:
 
         capital = initial_capital
         holdings: PortfolioWeights | None = None
-        prev_date: dt.date | None = None
+        data_date: dt.date | None = None
         results_list: list[pl.DataFrame] = []
         benchmark_returns_list: list[dict] = []
 
-        for date_ in tqdm(calendar.get(start, end), "RUNNING BACKTEST"):
-            rebalance = self._is_rebalance_date(date_, prev_date, rebalance_frequency)
+        for trade_date in tqdm(calendar_provider.get(start, end), "RUNNING BACKTEST"):
+            if data_date is None:
+                data_date = trade_date
+                continue
+
+            rebalance = self._is_rebalance_date(trade_date, data_date, rebalance_frequency)
 
             if rebalance:
-                new_weights = strategy.generate_weights(date_)
+                new_weights = strategy.generate_weights(data_date)
+                new_weights = new_weights.with_columns(pl.lit(trade_date).alias('date'))
                 if trade_generator is not None:
                     new_weights = trade_generator.apply(new_weights, capital)
                 costs = cost_model.compute_costs(holdings, new_weights, capital)
                 capital -= costs
             else:
-                new_weights = holdings.with_columns(pl.lit(date_).alias('date'))
+                new_weights = holdings.with_columns(pl.lit(trade_date).alias('date'))
 
-            forward_returns = returns.get(date_)
+            returns = returns_provider.get(trade_date)
 
             results = (
                 new_weights
-                .join(forward_returns, on=['date', 'ticker'], how='left')
-                .with_columns(pl.col('return').fill_null(0))
+                .join(returns, on=['date', 'ticker'], how='left')
+                .with_columns(pl.col('return').fill_null(0)) # no return in returns
                 .with_columns(
                     pl.col('weight').mul(pl.lit(capital)).alias('value'),
                 )
@@ -124,21 +126,22 @@ class Backtester:
                 .select('date', 'ticker', 'weight')
             )
 
-            if benchmark is not None:
-                bm_weights = benchmark.get(date_)
+            if benchmark_weights_provider is not None:
+                bm_weights = benchmark_weights_provider.get(data_date)
+                bm_weights = bm_weights.with_columns(pl.lit(trade_date).alias('date'))
                 bm_return = (
                     bm_weights
-                    .join(forward_returns, on=['date', 'ticker'], how='left')
+                    .join(returns, on=['date', 'ticker'], how='left')
                     .with_columns(pl.col('return').fill_null(0))
                     .select(pl.col('weight').mul(pl.col('return')).sum())
                     .item()
                 )
                 benchmark_returns_list.append({
-                    'date': date_,
+                    'date': trade_date,
                     'benchmark_return': float(bm_return),
                 })
 
-            prev_date = date_
+            data_date = trade_date
             results_list.append(results)
 
         benchmark_returns = (

@@ -22,7 +22,7 @@ from atium.signals import compute_scores, compute_alphas
 # Parameters
 db = get_bear_lake_client()
 start = dt.date(2026, 1, 2)
-end = dt.date(2026, 2, 13)
+end = dt.date(2026, 2, 19)
 
 # Alpha calculation
 universe = db.query(bl.table('universe').drop('year').filter(pl.col('date').is_between(start, end)).sort('ticker', 'date'))
@@ -40,6 +40,8 @@ signals = (
             .over('ticker')
             .alias('signal'),
         )
+        .filter(pl.col('date').is_between(start, end))
+        .sort('date', 'ticker')
     )
 )
 scores = compute_scores(signals)
@@ -88,11 +90,11 @@ backtester = Backtester()
 results = backtester.run(
     start=start,
     end=end,
-    rebalance_frequency='weekly',
+    rebalance_frequency='daily',
     initial_capital=100_000,
-    calendar=calendar_provider,
-    returns=returns_provider,
-    benchmark=benchmark_provider,
+    calendar_provider=calendar_provider,
+    returns_provider=returns_provider,
+    benchmark_weights_provider=benchmark_provider,
     strategy=strategy,
     cost_model=cost_model,
     trade_generator=trade_generator
