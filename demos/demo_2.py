@@ -69,11 +69,9 @@ results = backtester.run(
     initial_capital=100_000,
     calendar_provider=calendar_provider,
     returns_provider=returns_provider,
-    benchmark_weights_provider=benchmark_provider,
     strategy=strategy,
     cost_model=cost_model,
     trade_generator=trade_generator
 )
 
-print(results.summary())
-results.plot_equity_curve('test.png')
+print(results)

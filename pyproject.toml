@@ -8,9 +8,7 @@ dependencies = [
     "bear-lake>=0.1.5",
     "cvxpy>=1.8.1",
     "dataframely>=2.7.0",
-    "matplotlib>=3.10.8",
     "numpy>=2.4.2",
     "polars>=1.38.1",
-    "seaborn>=0.13.2",
     "tqdm>=4.67.3",
 ]

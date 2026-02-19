@@ -14,10 +14,10 @@ from atium.objectives import MaxUtilityWithTargetActiveRisk
 from atium.optimizer import MVO
 from atium.optimizer_constraints import FullyInvested, LongOnly
 from atium.risk_model import FactorRiskModelConstructor
+from atium.signals import compute_alphas, compute_scores
 from atium.strategy import OptimizationStrategy
 from atium.trade_generator import TradeGenerator
 from atium.trading_constraints import MaxPositionCount, MinPositionSize
-from atium.signals import compute_scores, compute_alphas
 
 # Parameters
 db = get_bear_lake_client()
@@ -94,11 +94,9 @@ results = backtester.run(
     initial_capital=100_000,
     calendar_provider=calendar_provider,
     returns_provider=returns_provider,
-    benchmark_weights_provider=benchmark_provider,
     strategy=strategy,
     cost_model=cost_model,
     trade_generator=trade_generator
 )
 
-print(results.summary())
-results.plot_equity_curve('test.png')
+print(results)

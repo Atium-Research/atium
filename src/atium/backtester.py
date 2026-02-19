@@ -5,14 +5,12 @@ import polars as pl
 from tqdm import tqdm
 
 from atium.costs import CostModel, NoCost
-from atium.data import (BenchmarkWeightsProvider, CalendarProvider,
-                        ReturnsProvider)
-from atium.result import BacktestResult
-from atium.schemas import (BenchmarkReturnsSchema, PortfolioWeightsSchema,
-                           PositionResultsSchema)
+from atium.data import CalendarProvider, ReturnsProvider
+from atium.schemas import PortfolioWeightsSchema, PositionResultsSchema
 from atium.strategy import Strategy
 from atium.trade_generator import TradeGenerator
-from atium.types import PortfolioWeights
+from atium.types import PortfolioWeights, PositionResults
+
 
 class Backtester:
     """Engine that runs a strategy over historical data and tracks portfolio performance.
@@ -51,14 +49,13 @@ class Backtester:
         initial_capital: float,
         cost_model: CostModel | None = None,
         rebalance_frequency: Literal['daily', 'weekly', 'monthly'] = 'daily',
-        benchmark_weights_provider: BenchmarkWeightsProvider | None = None,
         trade_generator: TradeGenerator | None = None,
-    ) -> BacktestResult:
-        """Execute the backtest and return a BacktestResult.
+    ) -> PositionResults:
+        """Execute the backtest and return an asset-level results DataFrame.
 
         Args:
-            calendar: Provider for trading dates.
-            returns: Provider for next-period forward returns.
+            calendar_provider: Provider for trading dates.
+            returns_provider: Provider for next-period forward returns.
             strategy: Strategy that generates portfolio weights each period.
             start: First date of the backtest (inclusive).
             end: Last date of the backtest (inclusive).
@@ -67,9 +64,6 @@ class Backtester:
             rebalance_frequency: How often to rebalance — 'daily', 'weekly'
                 (first trading day of each ISO week), or 'monthly' (first
                 trading day of each calendar month).
-            benchmark: Optional benchmark provider for benchmark returns.
-                When supplied, BacktestResult will include benchmark-relative
-                analytics.
             trade_generator: Optional trade generator that applies trading
                 constraints to weights on rebalance dates.
         """
@@ -80,7 +74,6 @@ class Backtester:
         holdings: PortfolioWeights | None = None
         data_date: dt.date | None = None
         results_list: list[pl.DataFrame] = []
-        benchmark_returns_list: list[dict] = []
 
         for trade_date in tqdm(calendar_provider.get(start, end), "RUNNING BACKTEST"):
             if data_date is None:
@@ -126,28 +119,7 @@ class Backtester:
                 .select('date', 'ticker', 'weight')
             )
 
-            if benchmark_weights_provider is not None:
-                bm_weights = benchmark_weights_provider.get(data_date)
-                bm_weights = bm_weights.with_columns(pl.lit(trade_date).alias('date'))
-                bm_return = (
-                    bm_weights
-                    .join(returns, on=['date', 'ticker'], how='left')
-                    .with_columns(pl.col('return').fill_null(0))
-                    .select(pl.col('weight').mul(pl.col('return')).sum())
-                    .item()
-                )
-                benchmark_returns_list.append({
-                    'date': trade_date,
-                    'benchmark_return': float(bm_return),
-                })
-
             data_date = trade_date
             results_list.append(results)
 
-        benchmark_returns = (
-            BenchmarkReturnsSchema.validate(pl.DataFrame(benchmark_returns_list))
-            if benchmark_returns_list
-            else None
-        )
-
-        return BacktestResult(PositionResultsSchema.validate(pl.concat(results_list)), benchmark_returns)
+        return PositionResultsSchema.validate(pl.concat(results_list))

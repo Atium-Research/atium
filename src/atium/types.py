@@ -2,11 +2,9 @@ from typing import TypeAlias
 
 import dataframely as dy
 
-from atium.schemas import (ActiveReturnsSchema, AlphasSchema,
-                           BenchmarkReturnsSchema, BenchmarkWeightsSchema,
+from atium.schemas import (AlphasSchema, BenchmarkWeightsSchema,
                            FactorCovariancesSchema, FactorLoadingsSchema,
-                           IdioVolSchema, PerformanceSummarySchema,
-                           PortfolioReturnsSchema, PortfolioWeightsSchema,
+                           IdioVolSchema, PortfolioWeightsSchema,
                            PositionResultsSchema, ReturnsSchema, ScoresSchema,
                            SignalsSchema, UniverseSchema)
 
@@ -21,7 +19,3 @@ FactorCovariances: TypeAlias = dy.DataFrame[FactorCovariancesSchema]
 IdioVol: TypeAlias = dy.DataFrame[IdioVolSchema]
 PortfolioWeights: TypeAlias = dy.DataFrame[PortfolioWeightsSchema]
 PositionResults: TypeAlias = dy.DataFrame[PositionResultsSchema]
-PortfolioReturns: TypeAlias = dy.DataFrame[PortfolioReturnsSchema]
-BenchmarkReturns: TypeAlias = dy.DataFrame[BenchmarkReturnsSchema]
-ActiveReturns: TypeAlias = dy.DataFrame[ActiveReturnsSchema]
-PerformanceSummary: TypeAlias = dy.DataFrame[PerformanceSummarySchema]

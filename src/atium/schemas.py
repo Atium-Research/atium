@@ -71,28 +71,3 @@ class PositionResultsSchema(dy.Schema):
     pnl = dy.Float()
 
 
-class PortfolioReturnsSchema(dy.Schema):
-    date = dy.Date()
-    portfolio_value = dy.Float()
-    portfolio_return = dy.Float()
-
-
-class BenchmarkReturnsSchema(dy.Schema):
-    date = dy.Date()
-    benchmark_return = dy.Float()
-
-
-class ActiveReturnsSchema(dy.Schema):
-    date = dy.Date()
-    active_return = dy.Float()
-
-
-class PerformanceSummarySchema(dy.Schema):
-    annualized_return_pct = dy.Float()
-    annualized_volatility_pct = dy.Float()
-    sharpe_ratio = dy.Float()
-    max_drawdown_pct = dy.Float()
-    active_return_pct = dy.Float(nullable=True)
-    tracking_error_pct = dy.Float(nullable=True)
-    information_ratio = dy.Float(nullable=True)
-    relative_max_drawdown_pct = dy.Float(nullable=True)
