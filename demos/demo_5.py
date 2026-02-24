@@ -1,4 +1,4 @@
-"""Minimum variance backtest with weekly rebalancing."""
+"""Min variance with target active risk backtest with weekly rebalancing."""
 import datetime as dt
 
 from demo_data import (MyBenchmarkWeightsProvider, MyCalendarProvider,
@@ -8,7 +8,7 @@ from demo_data import (MyBenchmarkWeightsProvider, MyCalendarProvider,
 
 from atium.backtester import Backtester
 from atium.costs import LinearCost
-from atium.objectives import MinVariance
+from atium.objectives import MinVarianceWithTargetActiveRisk
 from atium.optimizer import MVO
 from atium.optimizer_constraints import FullyInvested, LongOnly
 from atium.risk_model import FactorRiskModelConstructor
@@ -38,7 +38,7 @@ risk_model_constructor = FactorRiskModelConstructor(
 
 # Define optimizer
 optimizer = MVO(
-    objective=MinVariance(),
+    objective=MinVarianceWithTargetActiveRisk(target_active_risk=0.05),
     constraints=[LongOnly(), FullyInvested()]
 )
 
