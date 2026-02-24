@@ -25,9 +25,9 @@ class OptimizationStrategy(Strategy):
 
     def __init__(
         self,
-        alpha_provider: AlphaProvider,
         risk_model_constructor: RiskModelConstructor,
         optimizer: MVO,
+        alpha_provider: AlphaProvider | None = None,
         benchmark_weights_provider: BenchmarkWeightsProvider | None = None,
         beta_provider: BetaProvider | None = None,
     ):
@@ -39,7 +39,10 @@ class OptimizationStrategy(Strategy):
 
     def generate_weights(self, date_: dt.date) -> PortfolioWeights:
         """Generate optimized portfolio weights for the given date."""
-        alphas = self.alpha_provider.get(date_)
+        alphas = None
+        if self.alpha_provider is not None:
+            alphas = self.alpha_provider.get(date_)
+
         risk_model = self.risk_model_constructor.get_risk_model(date_)
 
         benchmark_weights = None

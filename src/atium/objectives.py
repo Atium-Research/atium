@@ -107,3 +107,14 @@ class MaxUtilityWithTargetActiveRisk(Objective):
         X = 1 / (2 * lambda_)
         M = np.dot(X, sigma) / np.dot(X, X)
         return M / (2 * active_risk)
+
+
+class MinVariance(Objective):
+    """Minimum variance portfolio: minimize w' Sigma w."""
+
+    def build(
+        self, weights: cp.Variable, **kwargs
+    ) -> cp.Expression:
+        """Return the minimum variance objective expression."""
+        covariance_matrix: np.ndarray = kwargs.get('covariance_matrix')
+        return cp.Minimize(cp.quad_form(weights, covariance_matrix))

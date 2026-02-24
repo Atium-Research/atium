@@ -32,8 +32,8 @@ class MVO:
     def optimize(
         self,
         date_: dt.date,
-        alphas: Alphas,
         risk_model: RiskModel,
+        alphas: Alphas | None = None,
         benchmark_weights: BenchmarkWeights | None = None,
         betas: Betas | None = None,
     ) -> PortfolioWeights:
@@ -44,13 +44,14 @@ class MVO:
         tickers = risk_model.tickers
 
         # Filter alphas
-        alphas_np = (
-            pl.DataFrame({'ticker': tickers})
-            .join(alphas.select(['ticker', 'alpha']), on='ticker', how='left')
-            .fill_null(0.0)
-            .sort('ticker')['alpha']
-            .to_numpy()
-        )
+        if alphas is not None:
+            alphas_np = (
+                pl.DataFrame({'ticker': tickers})
+                .join(alphas.select(['ticker', 'alpha']), on='ticker', how='left')
+                .fill_null(0.0)
+                .sort('ticker')['alpha']
+                .to_numpy()
+            )
 
         # Filter benchmark weights
         if benchmark_weights is not None:
@@ -73,7 +74,9 @@ class MVO:
         weights = cp.Variable(n_assets)
 
         # Build objective kwargs
-        build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix, constraints=self.constraints)
+        build_kwargs = dict(covariance_matrix=covariance_matrix, constraints=self.constraints)
+        if alphas is not None:
+            build_kwargs['alphas'] = alphas_np
         if benchmark_weights is not None:
             build_kwargs['benchmark_weights'] = benchmark_weights_np
         if betas is not None:
