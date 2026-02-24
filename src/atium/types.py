@@ -2,7 +2,7 @@ from typing import TypeAlias
 
 import dataframely as dy
 
-from atium.schemas import (AlphasSchema, BenchmarkWeightsSchema,
+from atium.schemas import (AlphasSchema, BenchmarkWeightsSchema, BetasSchema,
                            FactorCovariancesSchema, FactorLoadingsSchema,
                            IdioVolSchema, PortfolioWeightsSchema,
                            PositionResultsSchema, ReturnsSchema, ScoresSchema,
@@ -13,6 +13,7 @@ Scores: TypeAlias = dy.DataFrame[ScoresSchema]
 Universe: TypeAlias = dy.DataFrame[UniverseSchema]
 Alphas: TypeAlias = dy.DataFrame[AlphasSchema]
 BenchmarkWeights: TypeAlias = dy.DataFrame[BenchmarkWeightsSchema]
+Betas: TypeAlias = dy.DataFrame[BetasSchema]
 Returns: TypeAlias = dy.DataFrame[ReturnsSchema]
 FactorLoadings: TypeAlias = dy.DataFrame[FactorLoadingsSchema]
 FactorCovariances: TypeAlias = dy.DataFrame[FactorCovariancesSchema]

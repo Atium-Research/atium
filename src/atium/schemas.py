@@ -56,6 +56,12 @@ class IdioVolSchema(dy.Schema):
     idio_vol = dy.Float()
 
 
+class BetasSchema(dy.Schema):
+    date = dy.Date()
+    ticker = dy.String()
+    beta = dy.Float()
+
+
 class PortfolioWeightsSchema(dy.Schema):
     date = dy.Date()
     ticker = dy.String()

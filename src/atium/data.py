@@ -1,7 +1,7 @@
 import datetime as dt
 from typing import Protocol
 
-from atium.types import (Alphas, BenchmarkWeights, FactorCovariances,
+from atium.types import (Alphas, BenchmarkWeights, Betas, FactorCovariances,
                          FactorLoadings, IdioVol, Returns)
 
 
@@ -39,6 +39,12 @@ class IdioVolProvider(Protocol):
     """Provides idiosyncratic volatility with columns [date, ticker, idio_vol]."""
 
     def get(self, date_: dt.date) -> IdioVol: ...
+
+
+class BetaProvider(Protocol):
+    """Provides forecasted asset betas with columns [date, ticker, beta]."""
+
+    def get(self, date_: dt.date) -> Betas: ...
 
 
 class BenchmarkWeightsProvider(Protocol):

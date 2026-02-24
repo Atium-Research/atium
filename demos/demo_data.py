@@ -5,10 +5,10 @@ import os
 import bear_lake as bl
 import polars as pl
 
-from atium.schemas import (AlphasSchema, BenchmarkWeightsSchema,
+from atium.schemas import (AlphasSchema, BenchmarkWeightsSchema, BetasSchema,
                            FactorCovariancesSchema, FactorLoadingsSchema,
                            IdioVolSchema, ReturnsSchema)
-from atium.types import (Alphas, BenchmarkWeights, FactorCovariances,
+from atium.types import (Alphas, BenchmarkWeights, Betas, FactorCovariances,
                          FactorLoadings, IdioVol, Returns)
 
 
@@ -158,3 +158,19 @@ class MyBenchmarkWeightsProvider:
 
     def get(self, date_: dt.date) -> BenchmarkWeights:
         return BenchmarkWeightsSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))
+
+class MyBetaProvider:
+    def __init__(self, db: bl.Database, start: dt.date, end: dt.date) -> None:
+        self.data = db.query(
+            bl.table('betas')
+            .rename({'predicted_beta': 'beta'})
+            .filter(
+                pl.col('date').is_between(start, end),
+                # pl.col('alpha').is_not_null()
+            )
+            .drop('year', 'historical_beta')
+            .sort('date', 'ticker')
+        )
+
+    def get(self, date_: dt.date) -> Betas:
+        return BetasSchema.validate(self.data.filter(pl.col('date').eq(date_)).sort('date', 'ticker'))    

@@ -78,7 +78,7 @@ class MaxUtilityWithTargetActiveRisk(Objective):
 
             w = cp.Variable(n_assets)
             obj = cp.Maximize(w @ alphas - 0.5 * lambda_ * cp.quad_form(w, covariance_matrix))
-            constraints = [c.build(w) for c in optimizer_constraints]
+            constraints = [c.build(w, **kwargs) for c in optimizer_constraints]
             prob = cp.Problem(obj, constraints)
             prob.solve()
 

@@ -1,7 +1,7 @@
 import datetime as dt
 from abc import ABC, abstractmethod
 
-from atium.data import AlphaProvider, BenchmarkWeightsProvider
+from atium.data import AlphaProvider, BenchmarkWeightsProvider, BetaProvider
 from atium.optimizer import MVO
 from atium.risk_model import RiskModelConstructor
 from atium.types import PortfolioWeights
@@ -29,11 +29,13 @@ class OptimizationStrategy(Strategy):
         risk_model_constructor: RiskModelConstructor,
         optimizer: MVO,
         benchmark_weights_provider: BenchmarkWeightsProvider | None = None,
+        beta_provider: BetaProvider | None = None,
     ):
         self.alpha_provider = alpha_provider
         self.risk_model_constructor = risk_model_constructor
         self.optimizer = optimizer
         self.benchmark_weights_provider = benchmark_weights_provider
+        self.beta_provider = beta_provider
 
     def generate_weights(self, date_: dt.date) -> PortfolioWeights:
         """Generate optimized portfolio weights for the given date."""
@@ -44,9 +46,14 @@ class OptimizationStrategy(Strategy):
         if self.benchmark_weights_provider is not None:
             benchmark_weights = self.benchmark_weights_provider.get(date_)
 
+        betas = None
+        if self.beta_provider is not None:
+            betas = self.beta_provider.get(date_)
+
         return self.optimizer.optimize(
-            date_=date_, 
-            alphas=alphas, 
-            risk_model=risk_model, 
-            benchmark_weights=benchmark_weights
+            date_=date_,
+            alphas=alphas,
+            risk_model=risk_model,
+            benchmark_weights=benchmark_weights,
+            betas=betas,
         )

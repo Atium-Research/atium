@@ -7,7 +7,7 @@ from atium.objectives import Objective
 from atium.optimizer_constraints import OptimizerConstraint
 from atium.risk_model import RiskModel
 from atium.schemas import PortfolioWeightsSchema
-from atium.types import Alphas, BenchmarkWeights, PortfolioWeights
+from atium.types import Alphas, BenchmarkWeights, Betas, PortfolioWeights
 
 
 class MVO:
@@ -35,6 +35,7 @@ class MVO:
         alphas: Alphas,
         risk_model: RiskModel,
         benchmark_weights: BenchmarkWeights | None = None,
+        betas: Betas | None = None,
     ) -> PortfolioWeights:
         # Get covariance matrix
         covariance_matrix = risk_model.build_covariance_matrix()
@@ -55,6 +56,18 @@ class MVO:
         if benchmark_weights is not None:
             benchmark_weights_np = benchmark_weights.filter(pl.col('ticker').is_in(tickers)).sort('ticker')['weight'].to_numpy()
 
+        # Filter betas
+        if betas is not None:
+            betas_aligned = (
+                pl.DataFrame({'ticker': tickers})
+                .join(betas.select(['ticker', 'beta']), on='ticker', how='left')
+                .sort('ticker')
+            )
+            missing = betas_aligned.filter(pl.col('beta').is_null())['ticker'].to_list()
+            if missing:
+                raise ValueError(f"BetaProvider is missing betas for tickers: {missing}")
+            betas_np = betas_aligned['beta'].to_numpy()
+
         # Create weights variable
         n_assets = len(tickers)
         weights = cp.Variable(n_assets)
@@ -63,10 +76,12 @@ class MVO:
         build_kwargs = dict(alphas=alphas_np, covariance_matrix=covariance_matrix, constraints=self.constraints)
         if benchmark_weights is not None:
             build_kwargs['benchmark_weights'] = benchmark_weights_np
+        if betas is not None:
+            build_kwargs['betas'] = betas_np
 
         # Define problem and solve
         objective = self.objective.build(weights, **build_kwargs)
-        constraints = [c.build(weights) for c in self.constraints]
+        constraints = [c.build(weights, **build_kwargs) for c in self.constraints]
         problem = cp.Problem(objective, constraints)
         problem.solve()
 
