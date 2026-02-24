@@ -1,6 +1,6 @@
 [project]
 name = "atium"
-version = "0.1.7"
+version = "0.1.8"
 description = "Atium Research quant research tools."
 readme = "README.md"
 requires-python = ">=3.13"

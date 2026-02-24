@@ -28,6 +28,14 @@ class FullyInvested(OptimizerConstraint):
         return cp.sum(weights) == 1
 
 
+class DollarNeutral(OptimizerConstraint):
+    """Constrain portfolio weights to sum to zero (dollar-neutral)."""
+
+    def build(self, weights: cp.Variable, **kwargs):
+        """Return the constraint sum(w) == 0."""
+        return cp.sum(weights) == 0
+
+
 class TargetBeta(OptimizerConstraint):
     """Constrain the portfolio beta to equal a target value.
 
